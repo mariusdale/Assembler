@@ -1,0 +1,130 @@
+import type {
+  Credentials,
+  DiscoveryResult,
+  ExecutionContext,
+  ProviderPack,
+  RollbackResult,
+  Task,
+  TaskResult,
+  TaskTemplate,
+  VerifyResult,
+} from '@devassemble/types';
+
+import { NeonClient } from './client.js';
+
+export const neonProviderPack: ProviderPack = {
+  name: 'neon',
+  actions: ['create-project', 'create-database', 'run-schema-migration', 'capture-database-url'],
+  discover: (creds: Credentials): Promise<DiscoveryResult> => {
+    const tokenPresent = typeof creds.values.token === 'string' && creds.values.token.length > 0;
+
+    return Promise.resolve({
+      connected: tokenPresent,
+      metadata: {},
+      ...(tokenPresent ? {} : { error: 'Missing Neon API token.' }),
+    });
+  },
+  plan: async (action: string, params: unknown): Promise<TaskTemplate[]> => [
+    await Promise.resolve({
+      name: `Neon ${action}`,
+      provider: 'neon',
+      action,
+      params: asParams(params),
+      risk: action === 'create-project' ? 'medium' : 'low',
+      requiresApproval: action === 'create-project',
+      retryPolicy: {
+        maxRetries: 1,
+        backoffMs: 500,
+      },
+      timeoutMs: 30_000,
+    }),
+  ],
+  apply: async (task: Task, ctx: ExecutionContext): Promise<TaskResult> => {
+    const client = new NeonClient(await ctx.getCredential('neon'));
+
+    switch (task.action) {
+      case 'create-project': {
+        const regionId = asOptionalString(task.params.regionId);
+        const project = await client.createProject({
+          name: asString(task.params.name, 'task.params.name'),
+          ...(regionId ? { regionId } : {}),
+        });
+
+        return {
+          success: true,
+          outputs: {
+            projectId: project.project.id,
+            projectName: project.project.name,
+            branchId: project.project.default_branch_id,
+            databaseUrl: project.connection_uris?.[0]?.connection_uri,
+          },
+        };
+      }
+      case 'create-database': {
+        const projectId = asString(task.params.projectId, 'task.params.projectId');
+        const branchId = asString(task.params.branchId, 'task.params.branchId');
+        const databaseName = asString(task.params.databaseName, 'task.params.databaseName');
+        const database = await client.createDatabase(projectId, branchId, databaseName);
+
+        return {
+          success: true,
+          outputs: {
+            databaseName: database.database.name,
+            projectId,
+            branchId,
+          },
+        };
+      }
+      case 'run-schema-migration':
+      case 'capture-database-url':
+        return {
+          success: true,
+          outputs: {
+            deferred: true,
+            action: task.action,
+          },
+          message: `${task.action} is scaffolded but not implemented yet.`,
+        };
+      default:
+        throw new Error(`Unsupported neon action "${task.action}".`);
+    }
+  },
+  verify: async (): Promise<VerifyResult> => Promise.resolve({
+    success: true,
+  }),
+  rollback: async (task: Task, ctx: ExecutionContext): Promise<RollbackResult> => {
+    if (task.action !== 'create-project') {
+      return {
+        success: true,
+      };
+    }
+
+    const projectId = asString(task.outputs.projectId, 'task.outputs.projectId');
+    const client = new NeonClient(await ctx.getCredential('neon'));
+    await client.deleteProject(projectId);
+
+    return {
+      success: true,
+    };
+  },
+};
+
+function asParams(value: unknown): Record<string, unknown> {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return {};
+}
+
+function asString(value: unknown, fieldName: string): string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`${fieldName} must be a non-empty string.`);
+  }
+
+  return value;
+}
+
+function asOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined;
+}

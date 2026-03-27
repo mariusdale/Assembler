@@ -1,0 +1,507 @@
+import type { AppSpec, RiskLevel, RunPlan, Task } from '@devassemble/types';
+
+import type { CreateRunPlanOptions, PlannerTaskSeed } from './types.js';
+
+const DEFAULT_RETRY_POLICY = {
+  maxRetries: 2,
+  backoffMs: 1_000,
+} as const;
+
+const DEFAULT_TIMEOUT_MS = 60_000;
+
+export class DependencyGraphError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DependencyGraphError';
+  }
+}
+
+export async function planPrompt(
+  prompt: string,
+  options: import('./types.js').PlanPromptOptions,
+): Promise<import('./types.js').PlannerResult> {
+  const parsed = await options.parser.parse(prompt);
+  const runPlan = createRunPlan(parsed.appSpec, {
+    ...(options.now ? { now: options.now } : {}),
+    ...(options.idGenerator ? { idGenerator: options.idGenerator } : {}),
+  });
+
+  return {
+    ...parsed,
+    runPlan,
+  };
+}
+
+export function createRunPlan(appSpec: AppSpec, options: CreateRunPlanOptions = {}): RunPlan {
+  const taskSeeds = createTaskSeeds(appSpec);
+  const tasks = topologicallySortTasks(taskSeeds.map(toTask));
+
+  return {
+    id: options.idGenerator?.() ?? crypto.randomUUID(),
+    appSpec,
+    tasks,
+    estimatedCostUsd: estimateMonthlyCostUsd(appSpec),
+    createdAt: options.now ?? new Date(),
+    status: 'draft',
+  };
+}
+
+export function topologicallySortTasks(tasks: Task[]): Task[] {
+  const taskById = new Map<string, Task>();
+  const indegree = new Map<string, number>();
+  const dependents = new Map<string, string[]>();
+  const sourceIndex = new Map<string, number>();
+
+  tasks.forEach((task, index) => {
+    if (taskById.has(task.id)) {
+      throw new DependencyGraphError(`Duplicate task id "${task.id}" in plan.`);
+    }
+
+    taskById.set(task.id, task);
+    indegree.set(task.id, 0);
+    dependents.set(task.id, []);
+    sourceIndex.set(task.id, index);
+  });
+
+  for (const task of tasks) {
+    for (const dependencyId of task.dependsOn) {
+      if (!taskById.has(dependencyId)) {
+        throw new DependencyGraphError(
+          `Task "${task.id}" depends on missing task "${dependencyId}".`,
+        );
+      }
+
+      indegree.set(task.id, (indegree.get(task.id) ?? 0) + 1);
+      dependents.get(dependencyId)?.push(task.id);
+    }
+  }
+
+  const ready = tasks
+    .filter((task) => (indegree.get(task.id) ?? 0) === 0)
+    .sort((left, right) => (sourceIndex.get(left.id) ?? 0) - (sourceIndex.get(right.id) ?? 0));
+  const sorted: Task[] = [];
+
+  while (ready.length > 0) {
+    const current = ready.shift();
+    if (!current) {
+      break;
+    }
+
+    sorted.push(current);
+
+    for (const dependentId of dependents.get(current.id) ?? []) {
+      const nextIndegree = (indegree.get(dependentId) ?? 0) - 1;
+      indegree.set(dependentId, nextIndegree);
+
+      if (nextIndegree === 0) {
+        const dependentTask = taskById.get(dependentId);
+        if (dependentTask) {
+          ready.push(dependentTask);
+          ready.sort(
+            (left, right) =>
+              (sourceIndex.get(left.id) ?? 0) - (sourceIndex.get(right.id) ?? 0),
+          );
+        }
+      }
+    }
+  }
+
+  if (sorted.length !== tasks.length) {
+    throw new DependencyGraphError('Run plan contains a dependency cycle.');
+  }
+
+  return sorted;
+}
+
+function createTaskSeeds(appSpec: AppSpec): PlannerTaskSeed[] {
+  const seeds: PlannerTaskSeed[] = [
+    taskSeed('github-create-repo', 'Create GitHub repository', 'github', 'create-repo'),
+    taskSeed(
+      'github-scaffold-template',
+      'Scaffold Next.js template',
+      'github',
+      'commit-template',
+      ['github-create-repo'],
+    ),
+    taskSeed(
+      'github-initial-commit',
+      'Create initial commit',
+      'github',
+      'create-initial-commit',
+      ['github-scaffold-template'],
+    ),
+    taskSeed(
+      'neon-create-project',
+      'Create Neon project',
+      'neon',
+      'create-project',
+      ['github-create-repo'],
+      {},
+      'medium',
+      true,
+    ),
+    taskSeed(
+      'neon-create-database',
+      'Create Neon database',
+      'neon',
+      'create-database',
+      ['neon-create-project'],
+      {},
+      'medium',
+      true,
+    ),
+    taskSeed(
+      'neon-run-schema-migration',
+      'Run database schema migration',
+      'neon',
+      'run-schema-migration',
+      ['neon-create-database'],
+    ),
+    taskSeed(
+      'neon-capture-database-url',
+      'Capture DATABASE_URL',
+      'neon',
+      'capture-database-url',
+      ['neon-run-schema-migration'],
+    ),
+    taskSeed(
+      'clerk-create-application',
+      'Create Clerk application',
+      'clerk',
+      'create-application',
+      ['github-create-repo'],
+    ),
+    taskSeed(
+      'clerk-configure-auth',
+      'Configure Clerk authentication',
+      'clerk',
+      'configure-auth',
+      ['clerk-create-application'],
+      {
+        strategy: appSpec.auth.strategy,
+      },
+    ),
+    taskSeed(
+      'clerk-capture-secret-key',
+      'Capture Clerk secret key',
+      'clerk',
+      'capture-secret-key',
+      ['clerk-configure-auth'],
+    ),
+    taskSeed(
+      'clerk-capture-publishable-key',
+      'Capture Clerk publishable key',
+      'clerk',
+      'capture-publishable-key',
+      ['clerk-configure-auth'],
+    ),
+    taskSeed(
+      'sentry-create-project',
+      'Create Sentry project',
+      'sentry',
+      'create-project',
+      ['github-create-repo'],
+    ),
+    taskSeed(
+      'sentry-add-nextjs-plugin',
+      'Add Sentry Next.js plugin',
+      'sentry',
+      'add-nextjs-plugin',
+      ['github-scaffold-template', 'sentry-create-project'],
+    ),
+    taskSeed(
+      'sentry-capture-dsn',
+      'Capture Sentry DSN',
+      'sentry',
+      'capture-dsn',
+      ['sentry-create-project'],
+    ),
+    taskSeed(
+      'posthog-create-project',
+      'Create PostHog project',
+      'posthog',
+      'create-project',
+      ['github-create-repo'],
+    ),
+    taskSeed(
+      'posthog-add-provider',
+      'Add PostHog provider to template',
+      'posthog',
+      'add-provider',
+      ['github-scaffold-template', 'posthog-create-project'],
+    ),
+    taskSeed(
+      'posthog-capture-api-key',
+      'Capture PostHog API key',
+      'posthog',
+      'capture-api-key',
+      ['posthog-create-project'],
+    ),
+    taskSeed(
+      'vercel-create-project',
+      'Create Vercel project',
+      'vercel',
+      'create-project',
+      ['github-create-repo'],
+      {},
+      'medium',
+      true,
+    ),
+    taskSeed(
+      'vercel-link-repository',
+      'Link Vercel project to GitHub repository',
+      'vercel',
+      'link-repository',
+      ['vercel-create-project', 'github-initial-commit'],
+      {},
+      'medium',
+      true,
+    ),
+  ];
+
+  const predeployEnvDependencies = [
+    'neon-capture-database-url',
+    'clerk-capture-secret-key',
+    'clerk-capture-publishable-key',
+    'sentry-capture-dsn',
+    'posthog-capture-api-key',
+  ];
+
+  if (appSpec.billing.mode !== 'none') {
+    seeds.push(
+      taskSeed(
+        'stripe-create-product',
+        'Create Stripe product',
+        'stripe',
+        'create-product',
+        ['github-create-repo'],
+      ),
+      taskSeed(
+        'stripe-create-price',
+        'Create Stripe price',
+        'stripe',
+        'create-price',
+        ['stripe-create-product'],
+        {
+          mode: appSpec.billing.mode,
+        },
+      ),
+      taskSeed(
+        'stripe-capture-secret-key',
+        'Capture Stripe secret key',
+        'stripe',
+        'capture-secret-key',
+        ['stripe-create-product'],
+      ),
+    );
+
+    predeployEnvDependencies.push('stripe-capture-secret-key');
+
+    if (appSpec.billing.mode === 'subscription') {
+      seeds.push(
+        taskSeed(
+          'stripe-setup-customer-portal',
+          'Set up Stripe customer portal',
+          'stripe',
+          'setup-customer-portal',
+          ['stripe-create-product'],
+        ),
+      );
+    }
+  }
+
+  if (appSpec.domain) {
+    seeds.push(
+      taskSeed(
+        'cloudflare-add-domain',
+        'Add custom domain to Cloudflare',
+        'cloudflare',
+        'add-domain',
+        ['vercel-deploy-preview'],
+        {
+          domain: appSpec.domain,
+        },
+        'high',
+        true,
+      ),
+      taskSeed(
+        'cloudflare-create-dns-records',
+        'Create Cloudflare DNS records',
+        'cloudflare',
+        'create-dns-records',
+        ['cloudflare-add-domain'],
+        {
+          domain: appSpec.domain,
+        },
+        'high',
+        true,
+      ),
+      taskSeed(
+        'cloudflare-verify-propagation',
+        'Verify DNS propagation',
+        'cloudflare',
+        'verify-propagation',
+        ['cloudflare-create-dns-records'],
+        {
+          domain: appSpec.domain,
+        },
+        'medium',
+        true,
+      ),
+      taskSeed(
+        'resend-verify-sending-domain',
+        'Verify Resend sending domain',
+        'resend',
+        'verify-sending-domain',
+        ['cloudflare-verify-propagation'],
+        {
+          domain: appSpec.domain,
+        },
+      ),
+      taskSeed(
+        'resend-create-api-key',
+        'Create Resend API key',
+        'resend',
+        'create-api-key',
+        ['resend-verify-sending-domain'],
+      ),
+      taskSeed(
+        'resend-capture-api-key',
+        'Capture Resend API key',
+        'resend',
+        'capture-api-key',
+        ['resend-create-api-key'],
+      ),
+    );
+  } else {
+    seeds.push(
+      taskSeed(
+        'resend-create-api-key',
+        'Create Resend API key',
+        'resend',
+        'create-api-key',
+        ['github-create-repo'],
+      ),
+      taskSeed(
+        'resend-capture-api-key',
+        'Capture Resend API key',
+        'resend',
+        'capture-api-key',
+        ['resend-create-api-key'],
+      ),
+    );
+    predeployEnvDependencies.push('resend-capture-api-key');
+  }
+
+  seeds.push(
+    taskSeed(
+      'vercel-sync-predeploy-env-vars',
+      'Sync predeploy environment variables to Vercel',
+      'vercel',
+      'sync-predeploy-env-vars',
+      ['vercel-link-repository', ...predeployEnvDependencies],
+    ),
+    taskSeed(
+      'vercel-deploy-preview',
+      'Deploy preview environment',
+      'vercel',
+      'deploy-preview',
+      ['vercel-sync-predeploy-env-vars'],
+    ),
+  );
+
+  const postdeployEnvDependencies: string[] = [];
+
+  if (appSpec.billing.mode === 'subscription') {
+    seeds.push(
+      taskSeed(
+        'stripe-configure-webhook',
+        'Configure Stripe webhook endpoint',
+        'stripe',
+        'configure-webhook',
+        ['vercel-deploy-preview', 'stripe-create-price'],
+        {
+          previewUrlTaskId: 'vercel-deploy-preview',
+        },
+      ),
+      taskSeed(
+        'stripe-capture-webhook-secret',
+        'Capture Stripe webhook secret',
+        'stripe',
+        'capture-webhook-secret',
+        ['stripe-configure-webhook'],
+      ),
+    );
+    postdeployEnvDependencies.push('stripe-capture-webhook-secret');
+  }
+
+  if (appSpec.domain) {
+    postdeployEnvDependencies.push('resend-capture-api-key');
+  }
+
+  if (postdeployEnvDependencies.length > 0) {
+    seeds.push(
+      taskSeed(
+        'vercel-sync-postdeploy-env-vars',
+        'Sync postdeploy environment variables to Vercel',
+        'vercel',
+        'sync-postdeploy-env-vars',
+        ['vercel-deploy-preview', ...postdeployEnvDependencies],
+      ),
+    );
+  }
+
+  return seeds;
+}
+
+function taskSeed(
+  id: string,
+  name: string,
+  provider: string,
+  action: string,
+  dependsOn: string[] = [],
+  params: Record<string, unknown> = {},
+  risk: RiskLevel = 'low',
+  requiresApproval = false,
+): PlannerTaskSeed {
+  return {
+    id,
+    name,
+    provider,
+    action,
+    params,
+    dependsOn,
+    risk,
+    requiresApproval,
+  };
+}
+
+function toTask(seed: PlannerTaskSeed): Task {
+  return {
+    id: seed.id,
+    name: seed.name,
+    provider: seed.provider,
+    action: seed.action,
+    params: seed.params ?? {},
+    dependsOn: seed.dependsOn ?? [],
+    outputs: seed.outputs ?? {},
+    status: 'pending',
+    risk: seed.risk ?? 'low',
+    requiresApproval: seed.requiresApproval ?? false,
+    retryPolicy: seed.retryPolicy ?? { ...DEFAULT_RETRY_POLICY },
+    timeoutMs: seed.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+  };
+}
+
+function estimateMonthlyCostUsd(appSpec: AppSpec): number {
+  let total = 0;
+
+  total += 19;
+  total += 20;
+
+  if (appSpec.domain) {
+    total += 10;
+  }
+
+  return total;
+}

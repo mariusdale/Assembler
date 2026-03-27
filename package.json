@@ -1,0 +1,29 @@
+{
+  "name": "devassemble",
+  "private": true,
+  "version": "0.1.0",
+  "bin": {
+    "devassemble": "./bin/devassemble"
+  },
+  "packageManager": "pnpm@10.8.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "PATH=\"$PWD/bin:$PATH\" turbo run build",
+    "lint": "PATH=\"$PWD/bin:$PATH\" turbo run lint",
+    "typecheck": "PATH=\"$PWD/bin:$PATH\" turbo run typecheck",
+    "test": "PATH=\"$PWD/bin:$PATH\" turbo run test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.23.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.13.14",
+    "eslint": "^9.23.0",
+    "globals": "^16.0.0",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.28.0",
+    "vitest": "^3.1.1"
+  }
+}
