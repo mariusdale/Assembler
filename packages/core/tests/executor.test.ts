@@ -229,6 +229,39 @@ describe('executor runtime', () => {
     expect(statusChangeEvents.filter((event) => event.taskId === 'task-a')).toHaveLength(2);
     store.close();
   });
+
+  it('verifies using the task outputs produced by apply', async () => {
+    const provider = createMockProvider({
+      onApply: (task) =>
+        Promise.resolve({
+          success: true,
+          outputs: {
+            taskId: task.id,
+            owner: 'mariusdale',
+          },
+        }),
+      onVerify: (task) =>
+        Promise.resolve({
+          success: task.outputs.owner === 'mariusdale',
+        }),
+    });
+
+    const store = createStore();
+    const executor = createExecutor({
+      stateStore: store,
+      providers: {
+        mock: provider,
+      },
+      credentialResolver: resolveCredential,
+      sleep: () => Promise.resolve(),
+    });
+
+    const result = await executor.execute({ runPlan: createMockRunPlan() });
+
+    expect(result.runPlan.status).toBe('completed');
+    expect(result.runPlan.tasks[0]?.outputs.owner).toBe('mariusdale');
+    store.close();
+  });
 });
 
 function createStore(): SqliteRunStateStore {

@@ -13,7 +13,7 @@ const highlights = [
   },
 ];
 
-export default function DashboardPage(): JSX.Element {
+export default function DashboardPage() {
   return (
     <main className="page-shell">
       <section className="hero">

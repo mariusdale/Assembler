@@ -19,7 +19,7 @@ const features = [
   'Keep deployment settings simple with a single environment contract.',
 ];
 
-export default function HomePage(): JSX.Element {
+export default function HomePage() {
   return (
     <main className="page-shell">
       <section className="hero">

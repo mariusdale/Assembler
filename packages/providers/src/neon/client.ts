@@ -22,6 +22,14 @@ export interface NeonBranchResponse {
   };
 }
 
+export interface NeonBranchListResponse {
+  branches: Array<{
+    id: string;
+    name: string;
+    primary?: boolean;
+  }>;
+}
+
 export interface NeonDatabaseResponse {
   database: {
     id?: number;
@@ -77,7 +85,14 @@ export class NeonClient {
     );
   }
 
-  createDatabase(projectId: string, branchId: string, databaseName: string): Promise<NeonDatabaseResponse> {
+  createDatabase(
+    projectId: string,
+    branchId: string,
+    input: {
+      name: string;
+      ownerName: string;
+    },
+  ): Promise<NeonDatabaseResponse> {
     return requestJson<NeonDatabaseResponse>(
       `https://console.neon.tech/api/v2/projects/${projectId}/branches/${branchId}/databases`,
       {
@@ -85,9 +100,20 @@ export class NeonClient {
         headers: this.headers(),
         body: JSON.stringify({
           database: {
-            name: databaseName,
+            name: input.name,
+            owner_name: input.ownerName,
           },
         }),
+      },
+    );
+  }
+
+  listBranches(projectId: string): Promise<NeonBranchListResponse> {
+    return requestJson<NeonBranchListResponse>(
+      `https://console.neon.tech/api/v2/projects/${projectId}/branches`,
+      {
+        method: 'GET',
+        headers: this.headers(),
       },
     );
   }

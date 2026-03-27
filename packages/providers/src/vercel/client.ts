@@ -38,6 +38,13 @@ export class VercelClient {
   createProject(input: {
     name: string;
     framework?: string;
+    gitRepository?: {
+      type: 'github';
+      repo: string;
+      repoId: string | number;
+      repoOwnerId: string | number;
+      productionBranch?: string;
+    };
   }): Promise<VercelProjectResponse> {
     return requestJson<VercelProjectResponse>(this.apiUrl('/v11/projects'), {
       method: 'POST',
@@ -45,6 +52,7 @@ export class VercelClient {
       body: JSON.stringify({
         name: input.name,
         ...(input.framework ? { framework: input.framework } : {}),
+        ...(input.gitRepository ? { gitRepository: input.gitRepository } : {}),
       }),
     });
   }
@@ -95,6 +103,7 @@ export class VercelClient {
   }
 
   createDeployment(input: {
+    name: string;
     project: string;
     repoId: string | number;
     ref: string;
@@ -105,6 +114,7 @@ export class VercelClient {
       method: 'POST',
       headers: this.headers(),
       body: JSON.stringify({
+        name: input.name,
         project: input.project,
         target: input.target ?? 'preview',
         gitSource: {

@@ -50,13 +50,16 @@ export const neonProviderPack: ProviderPack = {
           name: projectName,
           ...(regionId ? { regionId } : {}),
         });
+        const branchId =
+          asOptionalString(project.project.default_branch_id) ??
+          await resolveBranchId(client, project.project.id);
 
         return {
           success: true,
           outputs: {
             projectId: project.project.id,
             projectName: project.project.name,
-            branchId: project.project.default_branch_id,
+            branchId,
             databaseUrl: project.connection_uris?.[0]?.connection_uri,
           },
         };
@@ -66,13 +69,20 @@ export const neonProviderPack: ProviderPack = {
           task.params.projectId ?? ctx.getOutput('neon-create-project', 'projectId'),
           'neon-create-project.projectId',
         );
-        const branchId = asString(
-          task.params.branchId ?? ctx.getOutput('neon-create-project', 'branchId'),
-          'neon-create-project.branchId',
-        );
+        const branchId =
+          asOptionalString(task.params.branchId) ??
+          asOptionalString(ctx.getOutput('neon-create-project', 'branchId')) ??
+          await resolveBranchId(client, projectId);
+        const ownerName =
+          asOptionalString(task.params.ownerName) ??
+          asOptionalString(ctx.getOutput('neon-create-project', 'ownerName')) ??
+          parseConnectionUser(ctx.getOutput('neon-create-project', 'databaseUrl'));
         const databaseName =
           asOptionalString(task.params.databaseName) ?? toSlug(ctx.appSpec.name);
-        const database = await client.createDatabase(projectId, branchId, databaseName);
+        const database = await client.createDatabase(projectId, branchId, {
+          name: databaseName,
+          ownerName,
+        });
 
         return {
           success: true,
@@ -80,6 +90,7 @@ export const neonProviderPack: ProviderPack = {
             databaseName: database.database.name,
             projectId,
             branchId,
+            ownerName,
           },
         };
       }
@@ -149,4 +160,33 @@ function toSlug(value: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 63) || 'devassemble-app';
+}
+
+async function resolveBranchId(client: NeonClient, projectId: string): Promise<string> {
+  const response = await client.listBranches(projectId);
+  const branch =
+    response.branches.find((candidate) => candidate.primary) ??
+    response.branches.find((candidate) => candidate.name === 'main') ??
+    response.branches[0];
+
+  if (!branch?.id) {
+    throw new Error(`Unable to resolve a Neon branch id for project "${projectId}".`);
+  }
+
+  return branch.id;
+}
+
+function parseConnectionUser(value: unknown): string {
+  const connectionString = asString(value, 'neon-create-project.databaseUrl');
+
+  try {
+    const username = new URL(connectionString).username;
+    if (username.trim() !== '') {
+      return decodeURIComponent(username);
+    }
+  } catch {
+    // Fall through to the explicit error below when the value is not a valid URL.
+  }
+
+  throw new Error('Unable to resolve Neon database owner from the project connection URL.');
 }

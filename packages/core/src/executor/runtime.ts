@@ -331,11 +331,15 @@ async function executeTaskWithRetry(options: ExecuteTaskWithRetryOptions): Promi
   while (true) {
     try {
       const taskResult = await options.provider.apply(workingTask, options.context);
-      const verifyResult = await options.provider.verify(workingTask, options.context);
-
       if (!taskResult.success) {
         throw new ExecutionRuntimeError(taskResult.message ?? `Task ${workingTask.id} failed.`);
       }
+
+      const verifiedTask = withTaskFields(workingTask, {
+        outputs: taskResult.outputs,
+      });
+      const verifyResult = await options.provider.verify(verifiedTask, options.context);
+
       if (!verifyResult.success) {
         throw new ExecutionRuntimeError(
           verifyResult.message ?? `Task ${workingTask.id} verification failed.`,

@@ -51,6 +51,30 @@ describe('vercel provider pack', () => {
         });
 
         if (url.includes('/v11/projects') && init?.method === 'POST') {
+          const body = typeof init.body === 'string' ? init.body : '';
+          const parsed = body === '' ? {} : JSON.parse(body);
+
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: parsed.gitRepository ? 'prj_456' : 'prj_123',
+                name: 'menugen',
+                ...(parsed.gitRepository
+                  ? {
+                      link: {
+                        repo: 'octocat/menugen',
+                        repoId: 987,
+                        productionBranch: 'main',
+                      },
+                    }
+                  : {}),
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+
+        if (url.includes('/v9/projects/prj_123') && init?.method === 'GET') {
           return Promise.resolve(
             new Response(
               JSON.stringify({
@@ -62,22 +86,11 @@ describe('vercel provider pack', () => {
           );
         }
 
-        if (url.includes('/v9/projects/prj_123') && init?.method === 'PATCH') {
-          return Promise.resolve(
-            new Response(
-              JSON.stringify({
-                id: 'prj_123',
-                name: 'menugen',
-                link: {
-                  repo: 'octocat/menugen',
-                },
-              }),
-              { status: 200 },
-            ),
-          );
+        if (url.includes('/v9/projects/prj_123') && init?.method === 'DELETE') {
+          return Promise.resolve(new Response('{}', { status: 200 }));
         }
 
-        if (url.includes('/v10/projects/prj_123/env') && init?.method === 'POST') {
+        if (url.includes('/v10/projects/prj_456/env') && init?.method === 'POST') {
           return Promise.resolve(new Response('{}', { status: 200 }));
         }
 
@@ -107,12 +120,15 @@ describe('vercel provider pack', () => {
           );
         }
 
-        if (url.includes('/v9/projects/prj_123') && init?.method === 'GET') {
+        if (url.includes('/v9/projects/prj_456') && init?.method === 'GET') {
           return Promise.resolve(
             new Response(
               JSON.stringify({
-                id: 'prj_123',
+                id: 'prj_456',
                 name: 'menugen',
+                link: {
+                  repo: 'octocat/menugen',
+                },
               }),
               { status: 200 },
             ),
@@ -130,6 +146,7 @@ describe('vercel provider pack', () => {
 
     const linked = await vercelProviderPack.apply(createTask('link-repository'), context);
     expect(linked.outputs.linkedRepo).toBe('octocat/menugen');
+    expect(linked.outputs.projectId).toBe('prj_456');
 
     const synced = await vercelProviderPack.apply(createTask('sync-predeploy-env-vars'), context);
     expect(Array.isArray(synced.outputs.syncedKeys)).toBe(true);
@@ -151,7 +168,14 @@ describe('vercel provider pack', () => {
       requests.some(
         (request) =>
           request.url.includes('/v9/projects/prj_123') &&
-          request.method === 'PATCH' &&
+          request.method === 'DELETE',
+      ),
+    ).toBe(true);
+    expect(
+      requests.some(
+        (request) =>
+          request.url.includes('/v11/projects') &&
+          request.method === 'POST' &&
           (request.body?.includes('"gitRepository"') ?? false),
       ),
     ).toBe(true);
@@ -198,6 +222,11 @@ function createExecutionContext(): ExecutionContext {
       const outputsByTaskId: Record<string, Record<string, unknown>> = {
         'vercel-create-project': {
           projectId: 'prj_123',
+          projectName: 'menugen',
+        },
+        'vercel-link-repository': {
+          projectId: 'prj_456',
+          projectName: 'menugen',
         },
         'github-create-repo': {
           repoId: 987,

@@ -10,6 +10,7 @@ import type {
   VerifyResult,
 } from '@devassemble/types';
 
+import { HttpError } from '../shared/http.js';
 import { VercelClient } from './client.js';
 
 export const vercelProviderPack: ProviderPack = {
@@ -67,10 +68,12 @@ export const vercelProviderPack: ProviderPack = {
         };
       }
       case 'link-repository': {
-        const projectId = asString(
-          ctx.getOutput('vercel-create-project', 'projectId'),
-          'vercel-create-project.projectId',
-        );
+        const projectId = asString(ctx.getOutput('vercel-create-project', 'projectId'), 'vercel-create-project.projectId');
+        const projectName =
+          asOptionalString(ctx.getOutput('vercel-create-project', 'projectName')) ??
+          asOptionalString(task.params.name) ??
+          toSlug(ctx.appSpec.name);
+        const framework = asOptionalString(task.params.framework) ?? 'nextjs';
         const repoFullName = asString(
           ctx.getOutput('github-create-repo', 'repoFullName'),
           'github-create-repo.repoFullName',
@@ -87,21 +90,21 @@ export const vercelProviderPack: ProviderPack = {
           asOptionalString(task.params.productionBranch) ??
           asOptionalString(ctx.getOutput('github-create-repo', 'defaultBranch')) ??
           'main';
-
-        const project = await client.updateProject(projectId, {
-          gitRepository: {
-            type: 'github',
-            repo: repoFullName,
-            repoId,
-            repoOwnerId: ownerId,
-            productionBranch,
-          },
+        const project = await createOrResolveLinkedProject(client, {
+          projectId,
+          projectName,
+          framework,
+          repoFullName,
+          repoId,
+          ownerId,
+          productionBranch,
         });
 
         return {
           success: true,
           outputs: {
             projectId: project.id,
+            projectName: project.name,
             linkedRepo: repoFullName,
             productionBranch,
           },
@@ -109,10 +112,7 @@ export const vercelProviderPack: ProviderPack = {
       }
       case 'sync-predeploy-env-vars':
       case 'sync-postdeploy-env-vars': {
-        const projectId = asString(
-          ctx.getOutput('vercel-create-project', 'projectId'),
-          'vercel-create-project.projectId',
-        );
+        const projectId = getProjectId(ctx);
         const vars = collectEnvVars(ctx, task.action);
 
         for (const envVar of vars) {
@@ -129,10 +129,12 @@ export const vercelProviderPack: ProviderPack = {
         };
       }
       case 'deploy-preview': {
-        const projectId = asString(
-          ctx.getOutput('vercel-create-project', 'projectId'),
-          'vercel-create-project.projectId',
-        );
+        const projectId = getProjectId(ctx);
+        const projectName =
+          asOptionalString(ctx.getOutput('vercel-link-repository', 'projectName')) ??
+          asOptionalString(ctx.getOutput('vercel-create-project', 'projectName')) ??
+          asOptionalString(task.params.name) ??
+          toSlug(ctx.appSpec.name);
         const repoId = asNumberLike(
           ctx.getOutput('github-create-repo', 'repoId'),
           'github-create-repo.repoId',
@@ -148,6 +150,7 @@ export const vercelProviderPack: ProviderPack = {
         }
 
         const deployment = await client.createDeployment({
+          name: projectName,
           project: projectId,
           repoId,
           ref,
@@ -192,8 +195,7 @@ export const vercelProviderPack: ProviderPack = {
       task.action === 'sync-postdeploy-env-vars'
     ) {
       const projectId =
-        asOptionalString(task.outputs.projectId) ??
-        asOptionalString(ctx.getOutput('vercel-create-project', 'projectId'));
+        asOptionalString(task.outputs.projectId) ?? asOptionalString(getOptionalProjectId(ctx));
 
       if (!projectId) {
         return {
@@ -213,7 +215,7 @@ export const vercelProviderPack: ProviderPack = {
     };
   },
   rollback: async (task: Task, ctx: ExecutionContext): Promise<RollbackResult> => {
-    if (task.action !== 'create-project') {
+    if (task.action !== 'create-project' && task.action !== 'link-repository') {
       return {
         success: true,
       };
@@ -221,7 +223,13 @@ export const vercelProviderPack: ProviderPack = {
 
     const client = new VercelClient(await ctx.getCredential('vercel'));
     const projectId = asString(task.outputs.projectId, 'task.outputs.projectId');
-    await client.deleteProject(projectId);
+    try {
+      await client.deleteProject(projectId);
+    } catch (error) {
+      if (!(error instanceof HttpError) || error.status !== 404) {
+        throw error;
+      }
+    }
 
     return {
       success: true,
@@ -333,4 +341,58 @@ function toSlug(value: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 63) || 'devassemble-app';
+}
+
+function getProjectId(ctx: ExecutionContext): string {
+  return asString(getOptionalProjectId(ctx), 'vercel project id');
+}
+
+function getOptionalProjectId(ctx: ExecutionContext): unknown {
+  return (
+    ctx.getOutput('vercel-link-repository', 'projectId') ??
+    ctx.getOutput('vercel-create-project', 'projectId')
+  );
+}
+
+async function createOrResolveLinkedProject(
+  client: VercelClient,
+  input: {
+    projectId: string;
+    projectName: string;
+    framework: string;
+    repoFullName: string;
+    repoId: string | number;
+    ownerId: string | number;
+    productionBranch: string;
+  },
+): Promise<{ id: string; name: string }> {
+  let existingProject: { id: string; name: string; link?: { repo?: string } } | undefined;
+
+  try {
+    existingProject = await client.getProject(input.projectId);
+  } catch (error) {
+    if (!(error instanceof HttpError) || error.status !== 404) {
+      throw error;
+    }
+  }
+
+  if (existingProject?.link?.repo === input.repoFullName) {
+    return existingProject;
+  }
+
+  if (existingProject) {
+    await client.deleteProject(input.projectId);
+  }
+
+  return client.createProject({
+    name: input.projectName,
+    framework: input.framework,
+    gitRepository: {
+      type: 'github',
+      repo: input.repoFullName,
+      repoId: input.repoId,
+      repoOwnerId: input.ownerId,
+      productionBranch: input.productionBranch,
+    },
+  });
 }

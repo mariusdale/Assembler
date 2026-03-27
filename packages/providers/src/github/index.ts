@@ -10,6 +10,7 @@ import type {
   VerifyResult,
 } from '@devassemble/types';
 
+import { HttpError } from '../shared/http.js';
 import { GitHubClient } from './client.js';
 import { loadGoldenPathTemplate } from './template.js';
 
@@ -52,7 +53,7 @@ export const githubProviderPack: ProviderPack = {
         const name = asOptionalString(task.params.name) ?? toSlug(ctx.appSpec.name);
         const description = asOptionalString(task.params.description);
         const isPrivate = asOptionalBoolean(task.params.private) ?? true;
-        const repository = await client.createRepository({
+        const repository = await createOrReuseRepository(client, {
           name,
           ...(description ? { description } : {}),
           private: isPrivate,
@@ -192,4 +193,24 @@ function toSlug(value: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 63) || 'devassemble-app';
+}
+
+async function createOrReuseRepository(
+  client: GitHubClient,
+  input: {
+    name: string;
+    description?: string;
+    private?: boolean;
+  },
+) {
+  try {
+    return await client.createRepository(input);
+  } catch (error) {
+    if (!(error instanceof HttpError) || error.status !== 422) {
+      throw error;
+    }
+
+    const viewer = await client.getViewer();
+    return client.getRepository(viewer.login, input.name);
+  }
 }
