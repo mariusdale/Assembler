@@ -114,8 +114,13 @@ export function topologicallySortTasks(tasks: Task[]): Task[] {
 }
 
 function createTaskSeeds(appSpec: AppSpec): PlannerTaskSeed[] {
+  const appSlug = toSlug(appSpec.name);
   const seeds: PlannerTaskSeed[] = [
-    taskSeed('github-create-repo', 'Create GitHub repository', 'github', 'create-repo'),
+    taskSeed('github-create-repo', 'Create GitHub repository', 'github', 'create-repo', [], {
+      name: appSlug,
+      description: appSpec.description,
+      private: true,
+    }),
     taskSeed(
       'github-scaffold-template',
       'Scaffold Next.js template',
@@ -136,7 +141,10 @@ function createTaskSeeds(appSpec: AppSpec): PlannerTaskSeed[] {
       'neon',
       'create-project',
       ['github-create-repo'],
-      {},
+      {
+        name: `${appSlug}-db`,
+        databaseName: appSlug,
+      },
       'medium',
       true,
     ),
@@ -146,7 +154,9 @@ function createTaskSeeds(appSpec: AppSpec): PlannerTaskSeed[] {
       'neon',
       'create-database',
       ['neon-create-project'],
-      {},
+      {
+        databaseName: appSlug,
+      },
       'medium',
       true,
     ),
@@ -243,7 +253,10 @@ function createTaskSeeds(appSpec: AppSpec): PlannerTaskSeed[] {
       'vercel',
       'create-project',
       ['github-create-repo'],
-      {},
+      {
+        name: appSlug,
+        framework: 'nextjs',
+      },
       'medium',
       true,
     ),
@@ -253,7 +266,9 @@ function createTaskSeeds(appSpec: AppSpec): PlannerTaskSeed[] {
       'vercel',
       'link-repository',
       ['vercel-create-project', 'github-initial-commit'],
-      {},
+      {
+        productionBranch: 'main',
+      },
       'medium',
       true,
     ),
@@ -504,4 +519,12 @@ function estimateMonthlyCostUsd(appSpec: AppSpec): number {
   }
 
   return total;
+}
+
+function toSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 63) || 'devassemble-app';
 }

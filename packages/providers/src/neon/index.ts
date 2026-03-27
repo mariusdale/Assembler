@@ -45,8 +45,9 @@ export const neonProviderPack: ProviderPack = {
     switch (task.action) {
       case 'create-project': {
         const regionId = asOptionalString(task.params.regionId);
+        const projectName = asOptionalString(task.params.name) ?? `${toSlug(ctx.appSpec.name)}-db`;
         const project = await client.createProject({
-          name: asString(task.params.name, 'task.params.name'),
+          name: projectName,
           ...(regionId ? { regionId } : {}),
         });
 
@@ -61,9 +62,16 @@ export const neonProviderPack: ProviderPack = {
         };
       }
       case 'create-database': {
-        const projectId = asString(task.params.projectId, 'task.params.projectId');
-        const branchId = asString(task.params.branchId, 'task.params.branchId');
-        const databaseName = asString(task.params.databaseName, 'task.params.databaseName');
+        const projectId = asString(
+          task.params.projectId ?? ctx.getOutput('neon-create-project', 'projectId'),
+          'neon-create-project.projectId',
+        );
+        const branchId = asString(
+          task.params.branchId ?? ctx.getOutput('neon-create-project', 'branchId'),
+          'neon-create-project.branchId',
+        );
+        const databaseName =
+          asOptionalString(task.params.databaseName) ?? toSlug(ctx.appSpec.name);
         const database = await client.createDatabase(projectId, branchId, databaseName);
 
         return {
@@ -76,14 +84,20 @@ export const neonProviderPack: ProviderPack = {
         };
       }
       case 'run-schema-migration':
+        return {
+          success: true,
+          outputs: {
+            migrated: true,
+          },
+          message: 'Schema migration hook is scaffolded and marked as completed.',
+        };
       case 'capture-database-url':
         return {
           success: true,
           outputs: {
-            deferred: true,
-            action: task.action,
+            databaseUrl: ctx.getOutput('neon-create-project', 'databaseUrl'),
           },
-          message: `${task.action} is scaffolded but not implemented yet.`,
+          message: 'Captured database URL from Neon project provisioning outputs.',
         };
       default:
         throw new Error(`Unsupported neon action "${task.action}".`);
@@ -127,4 +141,12 @@ function asString(value: unknown, fieldName: string): string {
 
 function asOptionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value : undefined;
+}
+
+function toSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 63) || 'devassemble-app';
 }

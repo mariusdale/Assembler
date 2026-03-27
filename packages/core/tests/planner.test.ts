@@ -111,6 +111,22 @@ describe('planner rule engine', () => {
     expect(
       runPlan.tasks.find((task) => task.id === 'vercel-create-project')?.requiresApproval,
     ).toBe(true);
+    expect(runPlan.tasks.find((task) => task.id === 'github-create-repo')?.params).toMatchObject({
+      name: 'menugen',
+      description: 'Restaurant menu generator SaaS',
+      private: true,
+    });
+    expect(runPlan.tasks.find((task) => task.id === 'neon-create-database')?.params).toMatchObject(
+      {
+        databaseName: 'menugen',
+      },
+    );
+    expect(runPlan.tasks.find((task) => task.id === 'vercel-create-project')?.params).toMatchObject(
+      {
+        name: 'menugen',
+        framework: 'nextjs',
+      },
+    );
   });
 
   it('adds domain and postdeploy email tasks when a custom domain is present', () => {

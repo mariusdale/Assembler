@@ -2,6 +2,7 @@ import type { ProviderPack } from '@devassemble/types';
 
 import { githubProviderPack } from './github/index.js';
 import { neonProviderPack } from './neon/index.js';
+import { vercelProviderPack } from './vercel/index.js';
 import {
   clerkProviderPack,
   cloudflareProviderPack,
@@ -10,7 +11,6 @@ import {
   resendProviderPack,
   sentryProviderPack,
   stripeProviderPack,
-  vercelProviderPack,
 } from './placeholders.js';
 
 export const plannedProviders = [
@@ -31,6 +31,7 @@ export function createProviderRegistry(): Record<string, ProviderPack> {
   return {
     github: githubProviderPack,
     neon: neonProviderPack,
+    vercel: vercelProviderPack,
     ...placeholderProviderPacks,
   };
 }

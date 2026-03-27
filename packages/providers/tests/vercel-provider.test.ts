@@ -1,0 +1,252 @@
+import type { AppSpec, Credentials, ExecutionContext, Task } from '@devassemble/types';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { vercelProviderPack } from '../src/vercel/index.js';
+
+const sampleAppSpec: AppSpec = {
+  name: 'menugen',
+  description: 'Restaurant menu generator SaaS',
+  auth: {
+    provider: 'clerk',
+    strategy: 'both',
+  },
+  billing: {
+    provider: 'stripe',
+    mode: 'subscription',
+  },
+  database: {
+    provider: 'neon',
+  },
+  email: {
+    provider: 'resend',
+  },
+  monitoring: {
+    errorTracking: 'sentry',
+    analytics: 'posthog',
+  },
+  hosting: {
+    provider: 'vercel',
+  },
+  dns: {
+    provider: 'cloudflare',
+  },
+};
+
+describe('vercel provider pack', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('creates, links, syncs env vars, and deploys a preview from github outputs', async () => {
+    const requests: Array<{ url: string; method: string; body?: string }> = [];
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL, init?: RequestInit) => {
+        const url = input.toString();
+        requests.push({
+          url,
+          method: init?.method ?? 'GET',
+          ...(typeof init?.body === 'string' ? { body: init.body } : {}),
+        });
+
+        if (url.includes('/v11/projects') && init?.method === 'POST') {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: 'prj_123',
+                name: 'menugen',
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+
+        if (url.includes('/v9/projects/prj_123') && init?.method === 'PATCH') {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: 'prj_123',
+                name: 'menugen',
+                link: {
+                  repo: 'octocat/menugen',
+                },
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+
+        if (url.includes('/v10/projects/prj_123/env') && init?.method === 'POST') {
+          return Promise.resolve(new Response('{}', { status: 200 }));
+        }
+
+        if (url.includes('/v13/deployments') && init?.method === 'POST') {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: 'dpl_123',
+                url: 'menugen-preview.vercel.app',
+                readyState: 'READY',
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+
+        if (url.includes('/v13/deployments/dpl_123') && init?.method === 'GET') {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: 'dpl_123',
+                url: 'menugen-preview.vercel.app',
+                readyState: 'READY',
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+
+        if (url.includes('/v9/projects/prj_123') && init?.method === 'GET') {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: 'prj_123',
+                name: 'menugen',
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+
+        throw new Error(`Unexpected request: ${init?.method ?? 'GET'} ${url}`);
+      }),
+    );
+
+    const context = createExecutionContext();
+
+    const created = await vercelProviderPack.apply(createTask('create-project'), context);
+    expect(created.outputs.projectId).toBe('prj_123');
+
+    const linked = await vercelProviderPack.apply(createTask('link-repository'), context);
+    expect(linked.outputs.linkedRepo).toBe('octocat/menugen');
+
+    const synced = await vercelProviderPack.apply(createTask('sync-predeploy-env-vars'), context);
+    expect(Array.isArray(synced.outputs.syncedKeys)).toBe(true);
+
+    const deployed = await vercelProviderPack.apply(createTask('deploy-preview'), context);
+    expect(deployed.outputs.previewUrl).toBe('https://menugen-preview.vercel.app');
+
+    const verified = await vercelProviderPack.verify(
+      {
+        ...createTask('deploy-preview'),
+        outputs: deployed.outputs,
+      },
+      context,
+    );
+
+    expect(verified.success).toBe(true);
+    expect(requests.some((request) => request.url.includes('/v11/projects'))).toBe(true);
+    expect(
+      requests.some(
+        (request) =>
+          request.url.includes('/v9/projects/prj_123') &&
+          request.method === 'PATCH' &&
+          (request.body?.includes('"gitRepository"') ?? false),
+      ),
+    ).toBe(true);
+    expect(
+      requests.some(
+        (request) =>
+          request.url.includes('/v13/deployments') &&
+          request.method === 'POST' &&
+          (request.body?.includes('"repoId":"987"') ?? false),
+      ),
+    ).toBe(true);
+  });
+});
+
+function createTask(action: Task['action']): Task {
+  return {
+    id: `vercel-${action}`,
+    name: `Vercel ${action}`,
+    provider: 'vercel',
+    action,
+    params: {
+      name: 'menugen',
+      framework: 'nextjs',
+      productionBranch: 'main',
+    },
+    dependsOn: [],
+    outputs: {},
+    status: 'pending',
+    risk: 'low',
+    requiresApproval: false,
+    retryPolicy: {
+      maxRetries: 1,
+      backoffMs: 500,
+    },
+    timeoutMs: 30_000,
+  };
+}
+
+function createExecutionContext(): ExecutionContext {
+  return {
+    runId: 'run_test',
+    appSpec: sampleAppSpec,
+    getOutput(taskId: string, key: string): unknown {
+      const outputsByTaskId: Record<string, Record<string, unknown>> = {
+        'vercel-create-project': {
+          projectId: 'prj_123',
+        },
+        'github-create-repo': {
+          repoId: 987,
+          repoFullName: 'octocat/menugen',
+          ownerId: 321,
+          defaultBranch: 'main',
+        },
+        'github-scaffold-template': {
+          latestCommitSha: 'abc123',
+        },
+        'neon-capture-database-url': {
+          databaseUrl: 'postgres://example',
+        },
+        'clerk-capture-secret-key': {
+          secretKey: 'clerk_secret',
+        },
+        'clerk-capture-publishable-key': {
+          publishableKey: 'clerk_publishable',
+        },
+        'sentry-capture-dsn': {
+          dsn: 'https://dsn',
+        },
+        'posthog-capture-api-key': {
+          apiKey: 'posthog_key',
+        },
+        'stripe-capture-secret-key': {
+          secretKey: 'stripe_secret',
+        },
+        'resend-capture-api-key': {
+          apiKey: 'resend_key',
+        },
+        'stripe-capture-webhook-secret': {
+          webhookSecret: 'whsec_test',
+        },
+        'vercel-deploy-preview': {
+          previewUrl: 'https://menugen-preview.vercel.app',
+        },
+      };
+
+      return outputsByTaskId[taskId]?.[key];
+    },
+    getCredential: (): Promise<Credentials> =>
+      Promise.resolve({
+        provider: 'vercel',
+        values: {
+          token: 'vercel-token',
+        },
+      }),
+    log: () => {},
+    emitEvent: (): void => {},
+  };
+}

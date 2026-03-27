@@ -124,31 +124,6 @@ export const posthogProviderPack = createPlaceholderProviderPack({
   },
 });
 
-export const vercelProviderPack = createPlaceholderProviderPack({
-  name: 'vercel',
-  actions: [
-    'create-project',
-    'link-repository',
-    'sync-predeploy-env-vars',
-    'deploy-preview',
-    'sync-postdeploy-env-vars',
-  ],
-  createOutputs: (action, { task }) => {
-    switch (action) {
-      case 'create-project':
-        return {
-          projectId: `vercel_${task.id}`,
-        };
-      case 'deploy-preview':
-        return {
-          previewUrl: `https://${task.id}.preview.devassemble.local`,
-        };
-      default:
-        return {};
-    }
-  },
-});
-
 export const cloudflareProviderPack = createPlaceholderProviderPack({
   name: 'cloudflare',
   actions: ['add-domain', 'create-dns-records', 'verify-propagation'],
@@ -160,6 +135,5 @@ export const placeholderProviderPacks: Record<string, ProviderPack> = {
   resend: resendProviderPack,
   sentry: sentryProviderPack,
   posthog: posthogProviderPack,
-  vercel: vercelProviderPack,
   cloudflare: cloudflareProviderPack,
 };

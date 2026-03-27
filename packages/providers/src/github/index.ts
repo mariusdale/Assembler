@@ -11,6 +11,7 @@ import type {
 } from '@devassemble/types';
 
 import { GitHubClient } from './client.js';
+import { loadGoldenPathTemplate } from './template.js';
 
 export const githubProviderPack: ProviderPack = {
   name: 'github',
@@ -48,7 +49,7 @@ export const githubProviderPack: ProviderPack = {
 
     switch (task.action) {
       case 'create-repo': {
-        const name = asString(task.params.name, 'task.params.name');
+        const name = asOptionalString(task.params.name) ?? toSlug(ctx.appSpec.name);
         const description = asOptionalString(task.params.description);
         const isPrivate = asOptionalBoolean(task.params.private) ?? true;
         const repository = await client.createRepository({
@@ -64,19 +65,64 @@ export const githubProviderPack: ProviderPack = {
             repoName: repository.name,
             repoFullName: repository.full_name,
             repoUrl: repository.html_url,
-            owner: repository.full_name.split('/')[0],
+            owner: repository.owner.login,
+            ownerId: repository.owner.id,
+            defaultBranch: repository.default_branch,
           },
         };
       }
-      case 'commit-template':
+      case 'commit-template': {
+        const owner = asString(
+          ctx.getOutput('github-create-repo', 'owner'),
+          'github-create-repo.owner',
+        );
+        const repoName = asString(
+          ctx.getOutput('github-create-repo', 'repoName'),
+          'github-create-repo.repoName',
+        );
+        const branch = asString(
+          ctx.getOutput('github-create-repo', 'defaultBranch'),
+          'github-create-repo.defaultBranch',
+        );
+        const files = await loadGoldenPathTemplate(ctx.appSpec);
+        let lastCommitSha: string | undefined;
+
+        for (const file of files) {
+          ctx.log('info', `Uploading template file ${file.path}`, {
+            provider: 'github',
+            repoName,
+          });
+          const response = await client.createOrUpdateFile({
+            owner,
+            repo: repoName,
+            path: file.path,
+            content: file.content,
+            message: `Scaffold ${file.path}`,
+            branch,
+          });
+          lastCommitSha = response.commit.sha;
+        }
+
+        return {
+          success: true,
+          outputs: {
+            templateName: 'next-saas',
+            fileCount: files.length,
+            branch,
+            ...(lastCommitSha ? { latestCommitSha: lastCommitSha } : {}),
+          },
+          message: `Uploaded ${files.length} template files to ${owner}/${repoName}.`,
+        };
+      }
       case 'create-initial-commit':
         return {
           success: true,
           outputs: {
-            deferred: true,
-            action: task.action,
+            branch: ctx.getOutput('github-create-repo', 'defaultBranch'),
+            committed: true,
+            latestCommitSha: ctx.getOutput('github-scaffold-template', 'latestCommitSha'),
           },
-          message: `${task.action} is scaffolded but not implemented yet.`,
+          message: 'Repository was auto-initialized and template files were committed.',
         };
       default:
         throw new Error(`Unsupported github action "${task.action}".`);
@@ -138,4 +184,12 @@ function asOptionalString(value: unknown): string | undefined {
 
 function asOptionalBoolean(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
+}
+
+function toSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 63) || 'devassemble-app';
 }
