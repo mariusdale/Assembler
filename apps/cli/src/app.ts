@@ -9,19 +9,22 @@ import {
   SqliteRunStateStore,
 } from '@devassemble/core';
 import { createProviderRegistry } from '@devassemble/providers';
-import type { AppSpec, Credentials, RunPlan } from '@devassemble/types';
+import type { AppSpec, Credentials, DiscoveryResult, RunEvent, RunPlan } from '@devassemble/types';
 
 const STATE_DIRECTORY_NAME = '.devassemble';
 const STATE_FILENAME = 'state.db';
+const REQUIRED_LIVE_PROVIDERS = new Set(['github', 'neon', 'vercel']);
 
 export interface CliApp {
   init(prompt: string): Promise<RunPlan>;
   execute(runId?: string): Promise<RunPlan>;
   status(runId?: string): Promise<RunPlan>;
+  events(runId?: string): Promise<RunEvent[]>;
   resume(runId: string): Promise<RunPlan>;
   rollback(runId: string): Promise<RunPlan>;
-  addCredential(provider: string, secret: string): Promise<void>;
+  addCredential(provider: string, entries: string[]): Promise<void>;
   listCredentials(): Promise<string[]>;
+  discover(provider: string): Promise<DiscoveryResult>;
 }
 
 export function createCliApp(cwd = process.cwd()): CliApp {
@@ -29,17 +32,13 @@ export function createCliApp(cwd = process.cwd()): CliApp {
     filename: resolveStateFile(cwd),
   });
   stateStore.initialize();
+  const providerRegistry = createProviderRegistry();
 
   const executor = createExecutor({
     stateStore,
-    providers: createProviderRegistry(),
+    providers: providerRegistry,
     credentialResolver: (provider, record): Promise<Credentials> =>
-      Promise.resolve({
-        provider,
-        values: {
-          token: record?.reference ?? '',
-        },
-      }),
+      Promise.resolve(resolveCredentials(provider, record)),
     sleep: () => Promise.resolve(),
   });
 
@@ -75,6 +74,8 @@ export function createCliApp(cwd = process.cwd()): CliApp {
         throw new Error(`Run "${targetRunId}" was not found.`);
       }
 
+      ensureLiveCredentials(runPlan, stateStore);
+
       const result = await executor.execute({
         runPlan:
           runPlan.status === 'draft'
@@ -88,32 +89,34 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       return result.runPlan;
     },
     status: (runId?: string): Promise<RunPlan> => {
-      const targetRunId = runId ?? findLatestRunId(stateStore);
-      if (!targetRunId) {
-        throw new Error('No runs found in the local state store.');
-      }
-
-      const runPlan = stateStore.loadRun(targetRunId);
-      if (!runPlan) {
-        throw new Error(`Run "${targetRunId}" was not found.`);
-      }
-
-      return Promise.resolve(runPlan);
+      return Promise.resolve(loadRun(stateStore, runId));
     },
+    events: (runId?: string): Promise<RunEvent[]> =>
+      Promise.resolve(stateStore.listEvents(loadRun(stateStore, runId).id)),
     resume: async (runId: string): Promise<RunPlan> => {
       const result = await executor.resume(runId);
       return result.runPlan;
     },
     rollback: async (runId: string): Promise<RunPlan> => executor.rollback(runId),
-    addCredential: (provider: string, secret: string): Promise<void> => {
+    addCredential: (provider: string, entries: string[]): Promise<void> => {
+      const parsed = parseCredentialInput(entries);
       stateStore.putCredentialRecord({
         provider,
-        reference: secret,
+        reference: parsed.reference,
+        ...(Object.keys(parsed.metadata).length > 0 ? { metadata: parsed.metadata } : {}),
       });
       return Promise.resolve();
     },
     listCredentials: (): Promise<string[]> =>
       Promise.resolve(stateStore.listCredentialRecords().map((record) => record.provider)),
+    discover: async (provider: string): Promise<DiscoveryResult> => {
+      const pack = providerRegistry[provider];
+      if (!pack) {
+        throw new Error(`Provider "${provider}" is not registered.`);
+      }
+
+      return pack.discover(resolveCredentials(provider, stateStore.getCredentialRecord(provider)));
+    },
   };
 }
 
@@ -185,4 +188,106 @@ function createHeuristicParser(): {
 
 function findLatestRunId(stateStore: SqliteRunStateStore): string | undefined {
   return stateStore.listRuns()[0]?.id;
+}
+
+function loadRun(stateStore: SqliteRunStateStore, runId?: string): RunPlan {
+  const targetRunId = runId ?? findLatestRunId(stateStore);
+  if (!targetRunId) {
+    throw new Error('No runs found in the local state store.');
+  }
+
+  const runPlan = stateStore.loadRun(targetRunId);
+  if (!runPlan) {
+    throw new Error(`Run "${targetRunId}" was not found.`);
+  }
+
+  return runPlan;
+}
+
+function parseCredentialInput(entries: string[]): {
+  reference: string;
+  metadata: Record<string, string>;
+} {
+  if (entries.length === 0) {
+    throw new Error('At least one credential value is required.');
+  }
+
+  const [firstEntry] = entries;
+  if (!firstEntry) {
+    throw new Error('At least one credential value is required.');
+  }
+
+  if (entries.length === 1 && !firstEntry.includes('=')) {
+    return {
+      reference: firstEntry,
+      metadata: {},
+    };
+  }
+
+  const metadata: Record<string, string> = {};
+  let reference: string | undefined;
+
+  for (const entry of entries) {
+    const separatorIndex = entry.indexOf('=');
+    if (separatorIndex <= 0) {
+      throw new Error(
+        'Structured credentials must use key=value entries, for example "token=abc" "teamId=team_123".',
+      );
+    }
+
+    const key = entry.slice(0, separatorIndex).trim();
+    const value = entry.slice(separatorIndex + 1).trim();
+    if (key === '' || value === '') {
+      throw new Error(`Invalid credential entry "${entry}". Expected non-empty key=value.`);
+    }
+
+    if (key === 'token') {
+      reference = value;
+      continue;
+    }
+
+    metadata[key] = value;
+  }
+
+  return {
+    reference: reference ?? '',
+    metadata,
+  };
+}
+
+function resolveCredentials(
+  provider: string,
+  record?: {
+    provider: string;
+    reference: string;
+    metadata?: Record<string, unknown>;
+  },
+): Credentials {
+  const values: Record<string, string> = {};
+  if (record?.reference) {
+    values.token = record.reference;
+  }
+
+  for (const [key, value] of Object.entries(record?.metadata ?? {})) {
+    if (typeof value === 'string' && value.trim() !== '') {
+      values[key] = value;
+    }
+  }
+
+  return {
+    provider,
+    values,
+  };
+}
+
+function ensureLiveCredentials(runPlan: RunPlan, stateStore: SqliteRunStateStore): void {
+  const missing = [...new Set(runPlan.tasks.map((task) => task.provider))]
+    .filter((provider) => REQUIRED_LIVE_PROVIDERS.has(provider))
+    .filter((provider) => !stateStore.getCredentialRecord(provider));
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required live credentials for: ${missing.join(', ')}. Add them with "devassemble creds add <provider> ...".`,
+    );
+  }
 }

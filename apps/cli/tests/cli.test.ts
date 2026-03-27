@@ -9,6 +9,8 @@ describe('devassemble CLI', () => {
     expect(help).toContain('devassemble');
     expect(help).toContain('init');
     expect(help).toContain('execute');
+    expect(help).toContain('events');
+    expect(help).toContain('discover');
     expect(help).toContain('creds');
     expect(help).toContain('Parse a prompt into a typed application plan.');
   });
