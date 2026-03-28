@@ -136,20 +136,11 @@ function createTaskSeedsFromProjectScan(projectScan: ProjectScan): PlannerTaskSe
     );
     seeds.push(
       taskSeed(
-        'neon-run-schema-migration',
-        'Run database schema migration',
-        'neon',
-        'run-schema-migration',
-        ['neon-create-database'],
-      ),
-    );
-    seeds.push(
-      taskSeed(
         'neon-capture-database-url',
         'Capture DATABASE_URL',
         'neon',
         'capture-database-url',
-        ['neon-run-schema-migration'],
+        ['neon-create-database'],
       ),
     );
   }

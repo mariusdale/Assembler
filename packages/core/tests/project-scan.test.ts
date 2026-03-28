@@ -95,5 +95,7 @@ describe('scan-driven planner', () => {
     expect(runPlan.tasks.some((task) => task.id === 'github-push-code')).toBe(true);
     expect(runPlan.tasks.some((task) => task.id === 'vercel-wait-for-ready')).toBe(true);
     expect(runPlan.tasks.some((task) => task.id === 'github-scaffold-template')).toBe(false);
+    expect(runPlan.tasks.some((task) => task.id === 'neon-run-schema-migration')).toBe(false);
+    expect(runPlan.tasks.some((task) => task.id === 'neon-capture-database-url')).toBe(true);
   });
 });

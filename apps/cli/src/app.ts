@@ -52,7 +52,7 @@ export function createCliApp(cwd = process.cwd()): CliApp {
     providers: providerRegistry,
     credentialResolver: (provider, record): Promise<Credentials> =>
       Promise.resolve(resolveCredentials(provider, record)),
-    sleep: () => Promise.resolve(),
+    sleep: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
   });
 
   return {
