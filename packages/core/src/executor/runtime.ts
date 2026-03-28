@@ -438,6 +438,7 @@ function createMutableExecutionContext(options: {
   const context: MutableExecutionContext = {
     runId: currentRunPlan.id,
     appSpec: currentRunPlan.appSpec,
+    projectScan: currentRunPlan.projectScan,
     getOutput: (taskId, key) => currentRunPlan.tasks.find((task) => task.id === taskId)?.outputs[key],
     getCredential: async (provider) => {
       const record = options.stateStore.getCredentialRecord(provider);
@@ -466,6 +467,7 @@ function createMutableExecutionContext(options: {
       currentRunPlan = runPlan;
       context.runId = runPlan.id;
       context.appSpec = runPlan.appSpec;
+      context.projectScan = runPlan.projectScan;
     },
   };
 

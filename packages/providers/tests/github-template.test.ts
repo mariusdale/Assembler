@@ -124,6 +124,7 @@ function createExecutionContext(): ExecutionContext {
   return {
     runId: 'run_test',
     appSpec: sampleAppSpec,
+    projectScan: undefined,
     getOutput(taskId: string, key: string): unknown {
       const outputsByTaskId: Record<string, Record<string, unknown>> = {
         'github-create-repo': {

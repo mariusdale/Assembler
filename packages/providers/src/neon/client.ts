@@ -49,6 +49,16 @@ export class NeonClient {
     this.token = token;
   }
 
+  listProjects(): Promise<{ projects: Array<{ id: string; name: string }> }> {
+    return requestJson<{ projects: Array<{ id: string; name: string }> }>(
+      'https://console.neon.tech/api/v2/projects',
+      {
+        method: 'GET',
+        headers: this.headers(),
+      },
+    );
+  }
+
   createProject(input: {
     name: string;
     regionId?: string;

@@ -29,13 +29,41 @@ export interface AppSpec {
   budgetCeiling?: number;
 }
 
+export type ProjectFramework = 'nextjs' | 'remix' | 'astro' | 'node' | 'unknown';
+
+export interface DetectedProvider {
+  provider: string;
+  confidence: 'high' | 'medium' | 'low';
+  evidence: string[];
+}
+
+export interface EnvVarRequirement {
+  name: string;
+  provider?: string;
+  source: string;
+  isAutoProvisionable: boolean;
+}
+
+export interface ProjectScan {
+  name: string;
+  framework: ProjectFramework;
+  directory: string;
+  hasGitRemote: boolean;
+  gitRemoteUrl?: string;
+  detectedProviders: DetectedProvider[];
+  requiredEnvVars: EnvVarRequirement[];
+  packageJson: Record<string, unknown>;
+}
+
 export type TaskStatus =
   | 'pending'
   | 'running'
   | 'success'
   | 'failed'
   | 'skipped'
-  | 'rolled_back';
+  | 'rolled_back'
+  | 'awaiting_approval'
+  | 'awaiting_operator';
 
 export type RiskLevel = 'low' | 'medium' | 'high';
 
@@ -58,6 +86,7 @@ export interface Task {
   retryPolicy: RetryPolicy;
   timeoutMs: number;
   error?: string;
+  remediationHint?: string;
   startedAt?: Date;
   completedAt?: Date;
 }
@@ -72,7 +101,8 @@ export type RunPlanStatus =
 
 export interface RunPlan {
   id: string;
-  appSpec: AppSpec;
+  projectScan?: ProjectScan;
+  appSpec?: AppSpec;
   tasks: Task[];
   estimatedCostUsd: number;
   createdAt: Date;
@@ -90,6 +120,18 @@ export interface DiscoveryResult {
   accountName?: string;
   metadata: Record<string, unknown>;
   error?: string;
+}
+
+export interface PreflightError {
+  code: string;
+  message: string;
+  remediation: string;
+  url?: string;
+}
+
+export interface PreflightResult {
+  valid: boolean;
+  errors: PreflightError[];
 }
 
 export interface TaskTemplate {
@@ -149,7 +191,8 @@ export interface RunEvent {
 
 export interface ExecutionContext {
   runId: string;
-  appSpec: AppSpec;
+  appSpec: AppSpec | undefined;
+  projectScan: ProjectScan | undefined;
   getOutput(taskId: string, key: string): unknown;
   getCredential(provider: string): Promise<Credentials>;
   log(level: RunEventLevel, msg: string, meta?: Record<string, unknown>): void;
@@ -159,10 +202,10 @@ export interface ExecutionContext {
 export interface ProviderPack {
   name: string;
   actions: string[];
+  preflight?(creds: Credentials): Promise<PreflightResult>;
   discover(creds: Credentials): Promise<DiscoveryResult>;
   plan(action: string, params: unknown): Promise<TaskTemplate[]>;
   apply(task: Task, ctx: ExecutionContext): Promise<TaskResult>;
   verify(task: Task, ctx: ExecutionContext): Promise<VerifyResult>;
   rollback(task: Task, ctx: ExecutionContext): Promise<RollbackResult>;
 }
-

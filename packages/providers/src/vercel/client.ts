@@ -35,6 +35,26 @@ export class VercelClient {
     this.slug = asOptionalString(creds.values.slug);
   }
 
+  getUser(): Promise<{ user: { id: string; username: string; name?: string } }> {
+    return requestJson<{ user: { id: string; username: string; name?: string } }>(
+      this.apiUrl('/v2/user'),
+      {
+        method: 'GET',
+        headers: this.headers(),
+      },
+    );
+  }
+
+  listIntegrations(): Promise<{ configurations: Array<{ slug: string; id: string }> }> {
+    return requestJson<{ configurations: Array<{ slug: string; id: string }> }>(
+      this.apiUrl('/v1/integrations/configurations'),
+      {
+        method: 'GET',
+        headers: this.headers(),
+      },
+    );
+  }
+
   createProject(input: {
     name: string;
     framework?: string;

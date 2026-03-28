@@ -1,4 +1,4 @@
-import type { AppSpec, RiskLevel, RunPlan, Task } from '@devassemble/types';
+import type { AppSpec, ProjectScan, RiskLevel, RunPlan, Task } from '@devassemble/types';
 
 import type { CreateRunPlanOptions, PlannerTaskSeed } from './types.js';
 
@@ -32,6 +32,23 @@ export async function planPrompt(
   };
 }
 
+export function createRunPlanFromProjectScan(
+  projectScan: ProjectScan,
+  options: CreateRunPlanOptions = {},
+): RunPlan {
+  const taskSeeds = createTaskSeedsFromProjectScan(projectScan);
+  const tasks = topologicallySortTasks(taskSeeds.map(toTask));
+
+  return {
+    id: options.idGenerator?.() ?? crypto.randomUUID(),
+    projectScan,
+    tasks,
+    estimatedCostUsd: estimateProjectScanCostUsd(projectScan),
+    createdAt: options.now ?? new Date(),
+    status: 'draft',
+  };
+}
+
 export function createRunPlan(appSpec: AppSpec, options: CreateRunPlanOptions = {}): RunPlan {
   const taskSeeds = createTaskSeeds(appSpec);
   const tasks = topologicallySortTasks(taskSeeds.map(toTask));
@@ -44,6 +61,165 @@ export function createRunPlan(appSpec: AppSpec, options: CreateRunPlanOptions = 
     createdAt: options.now ?? new Date(),
     status: 'draft',
   };
+}
+
+function createTaskSeedsFromProjectScan(projectScan: ProjectScan): PlannerTaskSeed[] {
+  const appSlug = toSlug(projectScan.name);
+  const repoTaskId = projectScan.hasGitRemote ? 'github-use-existing-repo' : 'github-create-repo';
+  const seeds: PlannerTaskSeed[] = [];
+
+  if (projectScan.hasGitRemote) {
+    seeds.push(
+      taskSeed(
+        'github-use-existing-repo',
+        'Use existing GitHub repository',
+        'github',
+        'use-existing-repo',
+        [],
+        {
+          remoteUrl: projectScan.gitRemoteUrl,
+        },
+      ),
+    );
+  } else {
+    seeds.push(
+      taskSeed('github-create-repo', 'Create GitHub repository', 'github', 'create-repo', [], {
+        name: appSlug,
+        description: `Deploy ${projectScan.name}`,
+        private: true,
+      }),
+    );
+  }
+
+  seeds.push(
+    taskSeed(
+      'github-push-code',
+      'Push local project code',
+      'github',
+      'push-code',
+      [repoTaskId],
+      {
+        directory: projectScan.directory,
+      },
+    ),
+  );
+
+  if (requiresProvider(projectScan, 'neon')) {
+    seeds.push(
+      taskSeed(
+        'neon-create-project',
+        'Create Neon project',
+        'neon',
+        'create-project',
+        [repoTaskId],
+        {
+          name: `${appSlug}-db`,
+          databaseName: appSlug,
+        },
+        'medium',
+        true,
+      ),
+    );
+    seeds.push(
+      taskSeed(
+        'neon-create-database',
+        'Create Neon database',
+        'neon',
+        'create-database',
+        ['neon-create-project'],
+        {
+          databaseName: appSlug,
+        },
+        'medium',
+        true,
+      ),
+    );
+    seeds.push(
+      taskSeed(
+        'neon-run-schema-migration',
+        'Run database schema migration',
+        'neon',
+        'run-schema-migration',
+        ['neon-create-database'],
+      ),
+    );
+    seeds.push(
+      taskSeed(
+        'neon-capture-database-url',
+        'Capture DATABASE_URL',
+        'neon',
+        'capture-database-url',
+        ['neon-run-schema-migration'],
+      ),
+    );
+  }
+
+  if (projectScan.framework === 'nextjs') {
+    const predeployDependencies = ['github-push-code'];
+    if (requiresProvider(projectScan, 'neon')) {
+      predeployDependencies.push('neon-capture-database-url');
+    }
+
+    seeds.push(
+      taskSeed(
+        'vercel-create-project',
+        'Create Vercel project',
+        'vercel',
+        'create-project',
+        [repoTaskId],
+        {
+          name: appSlug,
+          framework: 'nextjs',
+        },
+        'medium',
+        true,
+      ),
+    );
+    seeds.push(
+      taskSeed(
+        'vercel-link-repository',
+        'Link Vercel to GitHub repository',
+        'vercel',
+        'link-repository',
+        ['vercel-create-project', 'github-push-code'],
+        {
+          name: appSlug,
+          framework: 'nextjs',
+        },
+        'medium',
+        true,
+      ),
+    );
+    seeds.push(
+      taskSeed(
+        'vercel-sync-predeploy-env-vars',
+        'Sync environment variables to Vercel',
+        'vercel',
+        'sync-predeploy-env-vars',
+        ['vercel-link-repository', ...predeployDependencies],
+      ),
+    );
+    seeds.push(
+      taskSeed(
+        'vercel-deploy-preview',
+        'Deploy to Vercel preview',
+        'vercel',
+        'deploy-preview',
+        ['vercel-sync-predeploy-env-vars'],
+      ),
+    );
+    seeds.push(
+      taskSeed(
+        'vercel-wait-for-ready',
+        'Wait for Vercel deployment readiness',
+        'vercel',
+        'wait-for-ready',
+        ['vercel-deploy-preview'],
+      ),
+    );
+  }
+
+  return seeds;
 }
 
 export function topologicallySortTasks(tasks: Task[]): Task[] {
@@ -519,6 +695,27 @@ function estimateMonthlyCostUsd(appSpec: AppSpec): number {
   }
 
   return total;
+}
+
+function estimateProjectScanCostUsd(projectScan: ProjectScan): number {
+  let total = 0;
+
+  if (requiresProvider(projectScan, 'neon')) {
+    total += 0;
+  }
+
+  if (projectScan.framework === 'nextjs') {
+    total += 0;
+  }
+
+  return total;
+}
+
+function requiresProvider(projectScan: ProjectScan, provider: string): boolean {
+  return (
+    projectScan.detectedProviders.some((candidate) => candidate.provider === provider) ||
+    projectScan.requiredEnvVars.some((envVar) => envVar.provider === provider)
+  );
 }
 
 function toSlug(value: string): string {

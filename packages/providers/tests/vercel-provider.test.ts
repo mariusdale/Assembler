@@ -154,10 +154,13 @@ describe('vercel provider pack', () => {
     const deployed = await vercelProviderPack.apply(createTask('deploy-preview'), context);
     expect(deployed.outputs.previewUrl).toBe('https://menugen-preview.vercel.app');
 
+    const waited = await vercelProviderPack.apply(createTask('wait-for-ready'), context);
+    expect(waited.outputs.readyState).toBe('READY');
+
     const verified = await vercelProviderPack.verify(
       {
-        ...createTask('deploy-preview'),
-        outputs: deployed.outputs,
+        ...createTask('wait-for-ready'),
+        outputs: waited.outputs,
       },
       context,
     );
@@ -218,6 +221,7 @@ function createExecutionContext(): ExecutionContext {
   return {
     runId: 'run_test',
     appSpec: sampleAppSpec,
+    projectScan: undefined,
     getOutput(taskId: string, key: string): unknown {
       const outputsByTaskId: Record<string, Record<string, unknown>> = {
         'vercel-create-project': {
@@ -262,6 +266,7 @@ function createExecutionContext(): ExecutionContext {
           webhookSecret: 'whsec_test',
         },
         'vercel-deploy-preview': {
+          deploymentId: 'dpl_123',
           previewUrl: 'https://menugen-preview.vercel.app',
         },
       };

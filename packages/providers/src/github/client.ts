@@ -1,6 +1,6 @@
 import type { Credentials } from '@devassemble/types';
 
-import { HttpError, requestJson } from '../shared/http.js';
+import { HttpError, requestJson, requestJsonWithHeaders } from '../shared/http.js';
 
 export interface GitHubUserResponse {
   login: string;
@@ -52,6 +52,22 @@ export class GitHubClient {
     });
   }
 
+  async getViewerWithScopes(): Promise<{ user: GitHubUserResponse; scopes: string[] }> {
+    const { data, headers } = await requestJsonWithHeaders<GitHubUserResponse>(
+      'https://api.github.com/user',
+      {
+        method: 'GET',
+        headers: this.headers(),
+      },
+    );
+    const scopeHeader = headers.get('x-oauth-scopes') ?? '';
+    const scopes = scopeHeader
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    return { user: data, scopes };
+  }
+
   createRepository(input: {
     name: string;
     description?: string;
@@ -90,7 +106,7 @@ export class GitHubClient {
     owner: string;
     repo: string;
     path: string;
-    content: string;
+    content: string | Buffer;
     message: string;
     branch?: string;
   }): Promise<GitHubCreateOrUpdateFileResponse> {
@@ -103,7 +119,10 @@ export class GitHubClient {
         headers: this.headers(),
         body: JSON.stringify({
           message: input.message,
-          content: Buffer.from(input.content, 'utf8').toString('base64'),
+          content:
+            typeof input.content === 'string'
+              ? Buffer.from(input.content, 'utf8').toString('base64')
+              : Buffer.from(input.content).toString('base64'),
           ...(input.branch ? { branch: input.branch } : {}),
           ...(existing?.sha ? { sha: existing.sha } : {}),
         }),

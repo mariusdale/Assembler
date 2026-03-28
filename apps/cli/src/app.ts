@@ -4,18 +4,31 @@ import { join, resolve } from 'node:path';
 import {
   createAnthropicAppSpecParser,
   createAnthropicClient,
+  createRunPlanFromProjectScan,
   createExecutor,
   planPrompt,
+  scanProject,
   SqliteRunStateStore,
 } from '@devassemble/core';
 import { createProviderRegistry } from '@devassemble/providers';
-import type { AppSpec, Credentials, DiscoveryResult, RunEvent, RunPlan } from '@devassemble/types';
+import type { AppSpec, Credentials, DiscoveryResult, ProjectScan, RunEvent, RunPlan } from '@devassemble/types';
 
 const STATE_DIRECTORY_NAME = '.devassemble';
 const STATE_FILENAME = 'state.db';
 const REQUIRED_LIVE_PROVIDERS = new Set(['github', 'neon', 'vercel']);
 
+export interface LaunchResult {
+  projectScan: ProjectScan;
+  preflightResults: PreflightCheckResults;
+  runPlan: RunPlan;
+}
+
 export interface CliApp {
+  scan(): Promise<ProjectScan>;
+  createPlan(projectScan: ProjectScan): RunPlan;
+  preflight(runPlan: RunPlan): Promise<PreflightCheckResults>;
+  executePlan(runPlan: RunPlan): Promise<RunPlan>;
+  launch(): Promise<LaunchResult>;
   init(prompt: string): Promise<RunPlan>;
   execute(runId?: string): Promise<RunPlan>;
   status(runId?: string): Promise<RunPlan>;
@@ -43,6 +56,42 @@ export function createCliApp(cwd = process.cwd()): CliApp {
   });
 
   return {
+    scan: async (): Promise<ProjectScan> => {
+      return scanProject(cwd);
+    },
+    createPlan: (projectScan: ProjectScan): RunPlan => {
+      const runPlan: RunPlan = {
+        ...createRunPlanFromProjectScan(projectScan),
+        status: 'approved',
+      };
+      stateStore.saveRun(runPlan);
+      return runPlan;
+    },
+    preflight: async (runPlan: RunPlan): Promise<PreflightCheckResults> => {
+      ensureLiveCredentials(runPlan, stateStore);
+      return runPreflightChecks(runPlan, stateStore, providerRegistry);
+    },
+    executePlan: async (runPlan: RunPlan): Promise<RunPlan> => {
+      const result = await executor.execute({ runPlan });
+      return result.runPlan;
+    },
+    launch: async (): Promise<LaunchResult> => {
+      const projectScan = await scanProject(cwd);
+      const runPlan: RunPlan = {
+        ...createRunPlanFromProjectScan(projectScan),
+        status: 'approved',
+      };
+
+      stateStore.saveRun(runPlan);
+      ensureLiveCredentials(runPlan, stateStore);
+      const preflightResults = await runPreflightChecks(runPlan, stateStore, providerRegistry);
+
+      const result = await executor.execute({
+        runPlan,
+      });
+
+      return { projectScan, preflightResults, runPlan: result.runPlan };
+    },
     init: async (prompt: string): Promise<RunPlan> => {
       const parser = process.env.ANTHROPIC_API_KEY
         ? createAnthropicAppSpecParser({
@@ -290,4 +339,64 @@ function ensureLiveCredentials(runPlan: RunPlan, stateStore: SqliteRunStateStore
       `Missing required live credentials for: ${missing.join(', ')}. Add them with "devassemble creds add <provider> ...".`,
     );
   }
+}
+
+export interface PreflightCheckResults {
+  results: Map<string, import('@devassemble/types').PreflightResult>;
+  allValid: boolean;
+}
+
+export async function runPreflightChecks(
+  runPlan: RunPlan,
+  stateStore: SqliteRunStateStore,
+  providerRegistry: ReturnType<typeof createProviderRegistry>,
+): Promise<PreflightCheckResults> {
+  const providers = [...new Set(runPlan.tasks.map((task) => task.provider))]
+    .filter((provider) => REQUIRED_LIVE_PROVIDERS.has(provider));
+
+  const results = new Map<string, import('@devassemble/types').PreflightResult>();
+
+  for (const provider of providers) {
+    const pack = providerRegistry[provider];
+    if (!pack) {
+      throw new Error(`Provider "${provider}" is not registered.`);
+    }
+
+    const credentials = resolveCredentials(provider, stateStore.getCredentialRecord(provider));
+    if (pack.preflight) {
+      const result = await pack.preflight(credentials);
+      results.set(provider, result);
+      continue;
+    }
+
+    const discovery = await pack.discover(credentials);
+    results.set(provider, {
+      valid: discovery.connected,
+      errors: discovery.connected
+        ? []
+        : [
+            {
+              code: `${provider.toUpperCase()}_DISCOVERY_FAILED`,
+              message: discovery.error ?? `Credential check failed for provider "${provider}".`,
+              remediation: `Check your ${provider} credentials with "devassemble discover ${provider}".`,
+            },
+          ],
+    });
+  }
+
+  const allValid = [...results.values()].every((r) => r.valid);
+
+  if (!allValid) {
+    const allErrors = [...results.entries()]
+      .filter(([, r]) => !r.valid)
+      .flatMap(([provider, r]) =>
+        r.errors.map(
+          (e) =>
+            `[${provider}] ${e.message}\n  → ${e.remediation}${e.url ? `\n    ${e.url}` : ''}`,
+        ),
+      );
+    throw new Error(`Preflight checks failed:\n\n${allErrors.join('\n\n')}`);
+  }
+
+  return { results, allValid };
 }

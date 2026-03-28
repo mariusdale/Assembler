@@ -198,6 +198,7 @@ function createExecutionContext(
   return {
     runId: 'run_test',
     appSpec: sampleAppSpec,
+    projectScan: undefined,
     getOutput(taskId: string, key: string): unknown {
       return outputsByTaskId[taskId]?.[key];
     },
@@ -209,7 +210,7 @@ function createExecutionContext(
         },
       });
     },
+    log: vi.fn(),
     emitEvent: vi.fn(),
-    confirmTaskApproval: vi.fn(() => Promise.resolve(true)),
   };
 }

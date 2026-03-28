@@ -184,6 +184,6 @@ describe('planner rule engine', () => {
     });
 
     expect(result.runPlan.id).toBe('planned_run');
-    expect(result.runPlan.appSpec.name).toBe('menugen');
+    expect(result.runPlan.appSpec?.name).toBe('menugen');
   });
 });

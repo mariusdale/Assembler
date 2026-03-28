@@ -2,6 +2,7 @@ import type {
   Credentials,
   DiscoveryResult,
   ExecutionContext,
+  PreflightResult,
   ProviderPack,
   RollbackResult,
   Task,
@@ -10,11 +11,61 @@ import type {
   VerifyResult,
 } from '@devassemble/types';
 
+import { HttpError } from '../shared/http.js';
 import { NeonClient } from './client.js';
 
 export const neonProviderPack: ProviderPack = {
   name: 'neon',
   actions: ['create-project', 'create-database', 'run-schema-migration', 'capture-database-url'],
+  preflight: async (creds: Credentials): Promise<PreflightResult> => {
+    const errors: PreflightResult['errors'] = [];
+
+    if (!creds.values.token) {
+      return {
+        valid: false,
+        errors: [
+          {
+            code: 'NEON_TOKEN_MISSING',
+            message: 'No Neon API key configured.',
+            remediation:
+              'Add a Neon account-level API key with "devassemble creds add neon <api-key>".',
+            url: 'https://console.neon.tech/app/settings/api-keys',
+          },
+        ],
+      };
+    }
+
+    try {
+      const client = new NeonClient(creds);
+      await client.listProjects();
+    } catch (error) {
+      if (error instanceof HttpError && error.status === 401) {
+        errors.push({
+          code: 'NEON_TOKEN_INVALID',
+          message: 'Your Neon API key is invalid or expired.',
+          remediation:
+            'Generate a new account-level API key and update it with "devassemble creds add neon <api-key>".',
+          url: 'https://console.neon.tech/app/settings/api-keys',
+        });
+      } else if (error instanceof HttpError && error.status === 403) {
+        errors.push({
+          code: 'NEON_PROJECT_SCOPED_KEY',
+          message: 'Your Neon API key appears to be project-scoped, not account-level.',
+          remediation:
+            'DevAssemble needs an account-level Neon API key, not a project-scoped key. Generate one at https://console.neon.tech/app/settings/api-keys',
+          url: 'https://console.neon.tech/app/settings/api-keys',
+        });
+      } else {
+        errors.push({
+          code: 'NEON_PREFLIGHT_ERROR',
+          message: `Neon API check failed: ${error instanceof Error ? error.message : String(error)}`,
+          remediation: 'Check your network connection and try again.',
+        });
+      }
+    }
+
+    return { valid: errors.length === 0, errors };
+  },
   discover: (creds: Credentials): Promise<DiscoveryResult> => {
     const tokenPresent = typeof creds.values.token === 'string' && creds.values.token.length > 0;
 
@@ -45,7 +96,8 @@ export const neonProviderPack: ProviderPack = {
     switch (task.action) {
       case 'create-project': {
         const regionId = asOptionalString(task.params.regionId);
-        const projectName = asOptionalString(task.params.name) ?? `${toSlug(ctx.appSpec.name)}-db`;
+        const projectName =
+          asOptionalString(task.params.name) ?? `${toSlug(getProjectName(ctx))}-db`;
         const project = await client.createProject({
           name: projectName,
           ...(regionId ? { regionId } : {}),
@@ -78,7 +130,7 @@ export const neonProviderPack: ProviderPack = {
           asOptionalString(ctx.getOutput('neon-create-project', 'ownerName')) ??
           parseConnectionUser(ctx.getOutput('neon-create-project', 'databaseUrl'));
         const databaseName =
-          asOptionalString(task.params.databaseName) ?? toSlug(ctx.appSpec.name);
+          asOptionalString(task.params.databaseName) ?? toSlug(getProjectName(ctx));
         const database = await client.createDatabase(projectId, branchId, {
           name: databaseName,
           ownerName,
@@ -160,6 +212,10 @@ function toSlug(value: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 63) || 'devassemble-app';
+}
+
+function getProjectName(ctx: ExecutionContext): string {
+  return ctx.projectScan?.name ?? ctx.appSpec?.name ?? 'devassemble-app';
 }
 
 async function resolveBranchId(client: NeonClient, projectId: string): Promise<string> {

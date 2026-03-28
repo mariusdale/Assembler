@@ -2,6 +2,7 @@ import type {
   Credentials,
   DiscoveryResult,
   ExecutionContext,
+  PreflightResult,
   ProviderPack,
   RollbackResult,
   Task,
@@ -20,8 +21,70 @@ export const vercelProviderPack: ProviderPack = {
     'link-repository',
     'sync-predeploy-env-vars',
     'deploy-preview',
+    'wait-for-ready',
     'sync-postdeploy-env-vars',
   ],
+  preflight: async (creds: Credentials): Promise<PreflightResult> => {
+    const errors: PreflightResult['errors'] = [];
+
+    if (!creds.values.token) {
+      return {
+        valid: false,
+        errors: [
+          {
+            code: 'VERCEL_TOKEN_MISSING',
+            message: 'No Vercel token configured.',
+            remediation:
+              'Add a Vercel token with "devassemble creds add vercel token=<token>".',
+            url: 'https://vercel.com/account/tokens',
+          },
+        ],
+      };
+    }
+
+    const client = new VercelClient(creds);
+
+    try {
+      await client.getUser();
+    } catch (error) {
+      if (error instanceof HttpError && (error.status === 401 || error.status === 403)) {
+        errors.push({
+          code: 'VERCEL_TOKEN_INVALID',
+          message: 'Your Vercel token is invalid or expired.',
+          remediation:
+            'Generate a new token and update it with "devassemble creds add vercel token=<token>".',
+          url: 'https://vercel.com/account/tokens',
+        });
+      } else {
+        errors.push({
+          code: 'VERCEL_PREFLIGHT_ERROR',
+          message: `Vercel API check failed: ${error instanceof Error ? error.message : String(error)}`,
+          remediation: 'Check your network connection and try again.',
+        });
+      }
+      return { valid: false, errors };
+    }
+
+    try {
+      const integrations = await client.listIntegrations();
+      const hasGitHub = integrations.configurations?.some(
+        (config) => config.slug === 'github' || config.slug === 'git-github',
+      );
+      if (!hasGitHub) {
+        errors.push({
+          code: 'VERCEL_GITHUB_NOT_INSTALLED',
+          message: 'The Vercel GitHub App is not installed on your account.',
+          remediation:
+            'Install the Vercel GitHub integration so DevAssemble can link repositories to Vercel projects.',
+          url: 'https://vercel.com/integrations/github',
+        });
+      }
+    } catch {
+      // Non-fatal: integration check failure shouldn't block preflight
+    }
+
+    return { valid: errors.length === 0, errors };
+  },
   discover: (creds: Credentials): Promise<DiscoveryResult> => {
     const tokenPresent = typeof creds.values.token === 'string' && creds.values.token.length > 0;
 
@@ -52,7 +115,7 @@ export const vercelProviderPack: ProviderPack = {
 
     switch (task.action) {
       case 'create-project': {
-        const projectName = asOptionalString(task.params.name) ?? toSlug(ctx.appSpec.name);
+        const projectName = asOptionalString(task.params.name) ?? toSlug(getProjectName(ctx));
         const framework = asOptionalString(task.params.framework) ?? 'nextjs';
         const project = await client.createProject({
           name: projectName,
@@ -72,23 +135,23 @@ export const vercelProviderPack: ProviderPack = {
         const projectName =
           asOptionalString(ctx.getOutput('vercel-create-project', 'projectName')) ??
           asOptionalString(task.params.name) ??
-          toSlug(ctx.appSpec.name);
+          toSlug(getProjectName(ctx));
         const framework = asOptionalString(task.params.framework) ?? 'nextjs';
         const repoFullName = asString(
-          ctx.getOutput('github-create-repo', 'repoFullName'),
-          'github-create-repo.repoFullName',
+          resolveRepoOutput(ctx, 'repoFullName'),
+          'github repository repoFullName',
         );
         const repoId = asNumberLike(
-          ctx.getOutput('github-create-repo', 'repoId'),
-          'github-create-repo.repoId',
+          resolveRepoOutput(ctx, 'repoId'),
+          'github repository repoId',
         );
         const ownerId = asNumberLike(
-          ctx.getOutput('github-create-repo', 'ownerId'),
-          'github-create-repo.ownerId',
+          resolveRepoOutput(ctx, 'ownerId'),
+          'github repository ownerId',
         );
         const productionBranch =
           asOptionalString(task.params.productionBranch) ??
-          asOptionalString(ctx.getOutput('github-create-repo', 'defaultBranch')) ??
+          asOptionalString(resolveRepoOutput(ctx, 'defaultBranch')) ??
           'main';
         const project = await createOrResolveLinkedProject(client, {
           projectId,
@@ -134,19 +197,20 @@ export const vercelProviderPack: ProviderPack = {
           asOptionalString(ctx.getOutput('vercel-link-repository', 'projectName')) ??
           asOptionalString(ctx.getOutput('vercel-create-project', 'projectName')) ??
           asOptionalString(task.params.name) ??
-          toSlug(ctx.appSpec.name);
+          toSlug(getProjectName(ctx));
         const repoId = asNumberLike(
-          ctx.getOutput('github-create-repo', 'repoId'),
-          'github-create-repo.repoId',
+          resolveRepoOutput(ctx, 'repoId'),
+          'github repository repoId',
         );
         const ref =
-          asOptionalString(ctx.getOutput('github-create-repo', 'defaultBranch')) ?? 'main';
+          asOptionalString(resolveRepoOutput(ctx, 'defaultBranch')) ?? 'main';
         const sha =
+          asOptionalString(ctx.getOutput('github-push-code', 'latestCommitSha')) ??
           asOptionalString(ctx.getOutput('github-scaffold-template', 'latestCommitSha')) ??
           asOptionalString(ctx.getOutput('github-initial-commit', 'latestCommitSha'));
 
         if (!sha) {
-          throw new Error('GitHub template commit SHA is required before deploying to Vercel.');
+          throw new Error('A GitHub commit SHA is required before deploying to Vercel. Ensure code was pushed to the repository.');
         }
 
         const deployment = await client.createDeployment({
@@ -168,6 +232,42 @@ export const vercelProviderPack: ProviderPack = {
           },
         };
       }
+      case 'wait-for-ready': {
+        const deploymentId = asString(
+          ctx.getOutput('vercel-deploy-preview', 'deploymentId'),
+          'vercel-deploy-preview.deploymentId',
+        );
+        const timeoutMs = asOptionalNumber(task.params.timeoutMs) ?? 120_000;
+        const pollIntervalMs = asOptionalNumber(task.params.pollIntervalMs) ?? 4_000;
+        const startedAt = Date.now();
+
+        while (true) {
+          const deployment = await client.getDeployment(deploymentId);
+          const readyState = deployment.readyState ?? 'UNKNOWN';
+
+          if (readyState === 'READY') {
+            return {
+              success: true,
+              outputs: {
+                deploymentId,
+                readyState,
+                previewUrl: `https://${deployment.url}`,
+                ...(deployment.inspectorUrl ? { inspectorUrl: deployment.inspectorUrl } : {}),
+              },
+            };
+          }
+
+          if (!['QUEUED', 'BUILDING', 'INITIALIZING'].includes(readyState)) {
+            throw new Error(`Vercel deployment ${deploymentId} ended in state ${readyState}.`);
+          }
+
+          if (Date.now() - startedAt >= timeoutMs) {
+            throw new Error(`Timed out waiting for Vercel deployment ${deploymentId} to become ready.`);
+          }
+
+          await sleep(pollIntervalMs);
+        }
+      }
       default:
         throw new Error(`Unsupported vercel action "${task.action}".`);
     }
@@ -185,6 +285,12 @@ export const vercelProviderPack: ProviderPack = {
           readyState: deployment.readyState,
           url: deployment.url,
         },
+      };
+    }
+
+    if (task.action === 'wait-for-ready') {
+      return {
+        success: asOptionalString(task.outputs.readyState) === 'READY',
       };
     }
 
@@ -274,7 +380,10 @@ function collectEnvVars(
   };
 
   if (action === 'sync-predeploy-env-vars') {
+    // Outputs produced by the scan-based path (neon)
     push('DATABASE_URL', ctx.getOutput('neon-capture-database-url', 'databaseUrl'), allTargets);
+
+    // Outputs produced by the old AppSpec-based path (kept for backwards compatibility)
     push('CLERK_SECRET_KEY', ctx.getOutput('clerk-capture-secret-key', 'secretKey'), allTargets);
     push(
       'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
@@ -302,6 +411,13 @@ function collectEnvVars(
   }
 
   return vars;
+}
+
+function resolveRepoOutput(ctx: ExecutionContext, key: string): unknown {
+  return (
+    ctx.getOutput('github-use-existing-repo', key) ??
+    ctx.getOutput('github-create-repo', key)
+  );
 }
 
 function asParams(value: unknown): Record<string, unknown> {
@@ -335,12 +451,24 @@ function asNumberLike(value: unknown, fieldName: string): string | number {
   throw new Error(`${fieldName} must be a non-empty string or number.`);
 }
 
+function asOptionalNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
 function toSlug(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 63) || 'devassemble-app';
+}
+
+function getProjectName(ctx: ExecutionContext): string {
+  return ctx.projectScan?.name ?? ctx.appSpec?.name ?? 'devassemble-app';
 }
 
 function getProjectId(ctx: ExecutionContext): string {

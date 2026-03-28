@@ -70,6 +70,7 @@ const sampleRunPlan = {
 const sampleContext: ExecutionContext = {
   runId: sampleRunPlan.id,
   appSpec: sampleAppSpec,
+  projectScan: undefined,
   getOutput: () => undefined,
   getCredential: (provider) =>
     Promise.resolve({
