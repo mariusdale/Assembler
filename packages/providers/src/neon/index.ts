@@ -121,6 +121,7 @@ export const neonProviderPack: ProviderPack = {
           task.params.projectId ?? ctx.getOutput('neon-create-project', 'projectId'),
           'neon-create-project.projectId',
         );
+        await waitForProjectReady(client, projectId, ctx);
         const branchId =
           asOptionalString(task.params.branchId) ??
           asOptionalString(ctx.getOutput('neon-create-project', 'branchId')) ??
@@ -216,6 +217,35 @@ function toSlug(value: string): string {
 
 function getProjectName(ctx: ExecutionContext): string {
   return ctx.projectScan?.name ?? ctx.appSpec?.name ?? 'devassemble-app';
+}
+
+async function waitForProjectReady(
+  client: NeonClient,
+  projectId: string,
+  ctx: ExecutionContext,
+): Promise<void> {
+  const maxWaitMs = 30_000;
+  const pollMs = 2_000;
+  const start = Date.now();
+
+  while (Date.now() - start < maxWaitMs) {
+    const { operations } = await client.listOperations(projectId);
+    const active = operations.filter(
+      (op) => op.status === 'running' || op.status === 'scheduling',
+    );
+    if (active.length === 0) {
+      return;
+    }
+    ctx.log('info', `Waiting for ${active.length} Neon operation(s) to finish...`, {
+      provider: 'neon',
+      projectId,
+    });
+    await new Promise<void>((resolve) => setTimeout(resolve, pollMs));
+  }
+
+  throw new Error(
+    `Timed out waiting for Neon project "${projectId}" to finish active operations. Try running "devassemble resume" in a few seconds.`,
+  );
 }
 
 async function resolveBranchId(client: NeonClient, projectId: string): Promise<string> {

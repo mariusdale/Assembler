@@ -118,6 +118,17 @@ export class NeonClient {
     );
   }
 
+  listOperations(
+    projectId: string,
+  ): Promise<{ operations: Array<{ id: string; status: string; action: string }> }> {
+    return requestJson<{
+      operations: Array<{ id: string; status: string; action: string }>;
+    }>(`https://console.neon.tech/api/v2/projects/${projectId}/operations`, {
+      method: 'GET',
+      headers: this.headers(),
+    });
+  }
+
   listBranches(projectId: string): Promise<NeonBranchListResponse> {
     return requestJson<NeonBranchListResponse>(
       `https://console.neon.tech/api/v2/projects/${projectId}/branches`,

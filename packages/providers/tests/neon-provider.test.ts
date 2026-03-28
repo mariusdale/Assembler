@@ -108,6 +108,15 @@ describe('neon provider pack', () => {
       vi.fn((input: string | URL, init?: RequestInit) => {
         const url = input.toString();
 
+        if (url.includes('/api/v2/projects/prj_neon/operations') && init?.method === 'GET') {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ operations: [] }),
+              { status: 200 },
+            ),
+          );
+        }
+
         if (url.includes('/api/v2/projects/prj_neon/branches') && init?.method === 'GET') {
           return Promise.resolve(
             new Response(
