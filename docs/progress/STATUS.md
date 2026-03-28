@@ -15,7 +15,8 @@ user's code — all without the user touching any provider dashboard.
 | 1. Skeleton (workspace, types, CI) | Complete | 2026-03-26 |
 | 2. Live providers (GitHub, Neon, Vercel) | Complete | 2026-03-27 |
 | 3. Scan pivot, preflights, launch UX | Complete | 2026-03-28 |
-| 4. End-to-end demo validation | **In progress** | — |
+| 4. End-to-end demo validation | Complete | 2026-03-28 |
+| 5. Stripe provider + polish | **Next** | 2026-03-29 |
 
 ## What works
 
@@ -37,22 +38,22 @@ user's code — all without the user touching any provider dashboard.
 
 ## What doesn't work yet
 
-- **No live end-to-end validation** of the scan-based `launch` flow against real APIs.
-  The prior live test (March 27) used the old template path.
 - **No schema migrations**: Removed from the scan plan. Users must run their own
   migrations post-deploy.
 - **Old template path** (`init` command) still exists but is untested after the
   scan pivot changes. Not a priority.
 - **No CI integration tests** against real providers. Only unit/mock tests exist.
+- **No Stripe support**: Planned for Milestone 5.
+- **No custom domain support**: Cloudflare DNS deferred to a future `devassemble domain` command.
 
-## Known risks for the live test
+## Known issues
 
-1. GitHub Contents API is slow for large projects (one file per request). May need
-   to switch to the Git Trees/Blobs API for repos with many files.
-2. Neon `connection_uris` may not always be returned by the create-project endpoint.
-   Need to verify with a fresh account.
-3. Vercel deployment may fail if the project has build errors or missing env vars
-   that aren't auto-provisioned (e.g., third-party API keys).
+1. GitHub Contents API is slow for large projects (one file per request). Need to
+   switch to the Git Trees/Blobs API for repos with many files.
+2. Vercel preview deployments return 401 due to Deployment Protection. Need to
+   warn in completion summary or disable via API.
+3. Neon eventual consistency: solved with `waitForProjectReady()` polling, but
+   similar patterns may appear with other providers.
 
 ## Repository structure
 
