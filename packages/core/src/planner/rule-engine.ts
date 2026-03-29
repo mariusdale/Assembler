@@ -145,10 +145,25 @@ function createTaskSeedsFromProjectScan(projectScan: ProjectScan): PlannerTaskSe
     );
   }
 
+  if (requiresProvider(projectScan, 'stripe')) {
+    seeds.push(
+      taskSeed(
+        'stripe-capture-keys',
+        'Capture Stripe API keys',
+        'stripe',
+        'capture-keys',
+        [repoTaskId],
+      ),
+    );
+  }
+
   if (projectScan.framework === 'nextjs') {
     const predeployDependencies = ['github-push-code'];
     if (requiresProvider(projectScan, 'neon')) {
       predeployDependencies.push('neon-capture-database-url');
+    }
+    if (requiresProvider(projectScan, 'stripe')) {
+      predeployDependencies.push('stripe-capture-keys');
     }
 
     seeds.push(

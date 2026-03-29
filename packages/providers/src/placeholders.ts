@@ -30,46 +30,6 @@ export const clerkProviderPack = createPlaceholderProviderPack({
   },
 });
 
-export const stripeProviderPack = createPlaceholderProviderPack({
-  name: 'stripe',
-  actions: [
-    'create-product',
-    'create-price',
-    'capture-secret-key',
-    'setup-customer-portal',
-    'configure-webhook',
-    'capture-webhook-secret',
-  ],
-  createOutputs: (action, { task, ctx }) => {
-    switch (action) {
-      case 'create-product':
-        return {
-          productId: `prod_${task.id}`,
-        };
-      case 'create-price':
-        return {
-          priceId: `price_${task.id}`,
-          mode: task.params.mode,
-        };
-      case 'capture-secret-key':
-        return {
-          secretKey: 'sk_test_placeholder_stripe_secret_key',
-        };
-      case 'configure-webhook':
-        return {
-          webhookId: `wh_${task.id}`,
-          previewUrl: ctx.getOutput('vercel-deploy-preview', 'previewUrl'),
-        };
-      case 'capture-webhook-secret':
-        return {
-          webhookSecret: 'whsec_placeholder_stripe_webhook_secret',
-        };
-      default:
-        return {};
-    }
-  },
-});
-
 export const resendProviderPack = createPlaceholderProviderPack({
   name: 'resend',
   actions: ['verify-sending-domain', 'create-api-key', 'capture-api-key'],
@@ -131,7 +91,6 @@ export const cloudflareProviderPack = createPlaceholderProviderPack({
 
 export const placeholderProviderPacks: Record<string, ProviderPack> = {
   clerk: clerkProviderPack,
-  stripe: stripeProviderPack,
   resend: resendProviderPack,
   sentry: sentryProviderPack,
   posthog: posthogProviderPack,

@@ -4,11 +4,10 @@ DevAssemble is a CLI tool that provisions infrastructure and deploys existing pr
 It does NOT generate code. Users build their app, then run `devassemble launch` from
 their project directory to go live without touching any provider dashboards.
 
-## Current milestone: Demo-ready (Milestone 2)
+## Current milestone: Provider expansion (Milestone 5)
 
-Milestone 1 (skeleton, workspace, types, CI) is complete.
-We are now finishing Milestone 2: a working end-to-end launch flow for the three
-core providers (GitHub, Neon, Vercel).
+Milestones 1-4 are complete (skeleton, live providers, scan pivot, e2e validation).
+Milestone 5 adds Stripe as the fourth live provider and expands credential handling.
 
 ## Architecture
 
@@ -16,7 +15,7 @@ core providers (GitHub, Neon, Vercel).
 apps/cli/          CLI entry point (commander, ora, chalk)
 packages/types/    Shared type contracts (ProjectScan, RunPlan, Task, ProviderPack, etc.)
 packages/core/     Planner (rule engine, project scanner) and executor (DAG runtime, state store)
-packages/providers/ Provider implementations (github, neon, vercel) + placeholders for future ones
+packages/providers/ Provider implementations (github, neon, stripe, vercel) + placeholders
 apps/web/          Placeholder — no web dashboard in scope
 ```
 
@@ -33,7 +32,7 @@ apps/web/          Placeholder — no web dashboard in scope
 - **Every error needs a remediation hint.** Never surface raw HTTP errors.
 - **Idempotent provider actions.** If a resource already exists, detect and continue.
 - **Checkpoint after every task.** SQLite state store updates after every status change.
-- Three providers only: GitHub, Neon, Vercel. No scope expansion.
+- Four live providers: GitHub, Neon, Stripe, Vercel. Others remain placeholders.
 
 ## Provider credentials
 
@@ -47,10 +46,19 @@ Vercel supports structured entries: `devassemble creds add vercel token=<tok> te
 - Neon schema migration was removed from the scan plan — DevAssemble doesn't run user code. Users run their own migrations post-deploy.
 - Vercel's `wait-for-ready` uses its own `setTimeout`-based sleep, independent of the executor's retry sleep.
 
+## Stripe provider design
+
+- Stripe is detected when the scanner finds `stripe` in package.json or `STRIPE_*` env vars.
+- The scan path generates a single `stripe-capture-keys` task (no product/price/webhook creation — that's user business logic).
+- `capture-keys` validates the secret key against `/v1/account`, detects test vs live mode, and outputs `secretKey` + `mode`.
+- Vercel env var sync picks up `STRIPE_SECRET_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` from the capture task outputs.
+
 ## Testing a live run
 
 1. Create/use a Next.js project with a `.env.example` containing `DATABASE_URL=`
+   (and optionally `STRIPE_SECRET_KEY=` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=`)
 2. `devassemble creds add github <github-pat-with-repo-scope>`
 3. `devassemble creds add neon <neon-account-api-key>`
-4. `devassemble creds add vercel token=<vercel-token>`
-5. `cd <project-dir> && devassemble launch`
+4. `devassemble creds add stripe <stripe-secret-key>` (only if project uses Stripe)
+5. `devassemble creds add vercel token=<vercel-token>`
+6. `cd <project-dir> && devassemble launch`

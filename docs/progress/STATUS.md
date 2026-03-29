@@ -1,6 +1,6 @@
 # DevAssemble — Project Status
 
-Last updated: 2026-03-28
+Last updated: 2026-03-29
 
 ## Overview
 
@@ -16,7 +16,8 @@ user's code — all without the user touching any provider dashboard.
 | 2. Live providers (GitHub, Neon, Vercel) | Complete | 2026-03-27 |
 | 3. Scan pivot, preflights, launch UX | Complete | 2026-03-28 |
 | 4. End-to-end demo validation | Complete | 2026-03-28 |
-| 5. Stripe provider + polish | **Next** | 2026-03-29 |
+| 5. Stripe provider + polish | Complete | 2026-03-29 |
+| 6. Polish, edge cases, Deployment Protection | **Next** | — |
 
 ## What works
 
@@ -25,7 +26,8 @@ user's code — all without the user touching any provider dashboard.
 - **Rule engine**: Generates a topologically sorted task DAG from a `ProjectScan`.
   Handles both new repos and existing git remotes.
 - **Preflight checks**: Validates GitHub token + repo scope, Neon API key + account
-  level, Vercel token + GitHub integration. Reports all errors with remediation hints.
+  level, Stripe secret key format + API validation, Vercel token + GitHub integration.
+  Reports all errors with remediation hints.
 - **Executor**: DAG-walking runtime with retry, checkpoint/resume, and rollback.
   SQLite state store persists across runs.
 - **GitHub provider**: Create/reuse repo, push project files via Contents API.
@@ -43,7 +45,8 @@ user's code — all without the user touching any provider dashboard.
 - **Old template path** (`init` command) still exists but is untested after the
   scan pivot changes. Not a priority.
 - **No CI integration tests** against real providers. Only unit/mock tests exist.
-- **No Stripe support**: Planned for Milestone 5.
+- **Stripe capture-keys only**: Validates key and syncs to Vercel. No product/price/webhook
+  creation (by design — that's user business logic).
 - **No custom domain support**: Cloudflare DNS deferred to a future `devassemble domain` command.
 
 ## Known issues
@@ -62,7 +65,7 @@ apps/cli/                CLI entry point
 apps/web/                Placeholder (no web dashboard)
 packages/types/          Shared type contracts
 packages/core/           Planner + executor
-packages/providers/      GitHub, Neon, Vercel implementations
+packages/providers/      GitHub, Neon, Stripe, Vercel implementations
 docs/                    Learnings and task specs
 docs/progress/           Session logs and status tracking
 test-fixtures/           Test projects for live validation

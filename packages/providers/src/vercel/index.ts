@@ -392,7 +392,13 @@ function collectEnvVars(
     );
     push('SENTRY_DSN', ctx.getOutput('sentry-capture-dsn', 'dsn'), allTargets);
     push('POSTHOG_API_KEY', ctx.getOutput('posthog-capture-api-key', 'apiKey'), allTargets);
-    push('STRIPE_SECRET_KEY', ctx.getOutput('stripe-capture-secret-key', 'secretKey'), allTargets);
+    push('STRIPE_SECRET_KEY',
+      ctx.getOutput('stripe-capture-keys', 'secretKey') ??
+      ctx.getOutput('stripe-capture-secret-key', 'secretKey'),
+      allTargets);
+    push('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY',
+      ctx.getOutput('stripe-capture-keys', 'publishableKey'),
+      allTargets);
     push('RESEND_API_KEY', ctx.getOutput('resend-capture-api-key', 'apiKey'), allTargets);
   }
 

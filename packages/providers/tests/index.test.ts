@@ -19,6 +19,6 @@ describe('provider registry', () => {
     expect(registry.github?.actions).toContain('create-repo');
     expect(registry.neon?.actions).toContain('create-project');
     expect(registry.vercel?.actions).toContain('deploy-preview');
-    expect(registry.stripe?.actions).toContain('configure-webhook');
+    expect(registry.stripe?.actions).toContain('capture-keys');
   });
 });
