@@ -22,6 +22,8 @@ apps/web/          Placeholder — no web dashboard in scope
 ## Key flows
 
 - `devassemble launch` — scan → preflight → plan → confirm → execute → summary
+- `devassemble plan` — scan → preflight → plan display (dry run, no execution)
+- `devassemble teardown [runId]` — roll back all resources created by a launch run
 - `devassemble init <prompt>` — old LLM/heuristic path (AppSpec-based, not used by launch)
 - `devassemble execute` / `resume` / `rollback` — operate on stored run plans
 

@@ -144,6 +144,69 @@ export function createProgram(): Command {
     });
 
   program
+    .command('plan')
+    .description('Scan the project and show the execution plan without running it.')
+    .action(async () => {
+      const cliApp = getApp();
+
+      // Scan
+      const scanSpinner = ora('Scanning project...').start();
+      let projectScan: ProjectScan;
+      try {
+        projectScan = await cliApp.scan();
+        const frameworkLabel = FRAMEWORK_LABELS[projectScan.framework] ?? projectScan.framework;
+        scanSpinner.succeed(`${frameworkLabel} app detected`);
+      } catch (error) {
+        scanSpinner.fail('Project scan failed');
+        printError(error);
+        process.exitCode = 1;
+        return;
+      }
+
+      printDetectedServices(projectScan);
+
+      // Create plan (saved to state store but not executed)
+      const runPlan = cliApp.createPlan(projectScan);
+
+      // Preflight
+      console.log();
+      console.log(chalk.bold('Checking credentials...'));
+      try {
+        const preflightResults = await cliApp.preflight(runPlan);
+        for (const [provider, result] of preflightResults.results) {
+          if (result.valid) {
+            console.log(`  ${chalk.green('✓')} ${capitalise(provider)}: valid`);
+          } else {
+            console.log(`  ${chalk.red('✗')} ${capitalise(provider)}: failed`);
+            for (const err of result.errors) {
+              console.log(`    ${chalk.red(err.message)}`);
+              console.log(`    ${chalk.dim('→')} ${err.remediation}`);
+            }
+          }
+        }
+
+        if (!preflightResults.allValid) {
+          console.log();
+          console.log(chalk.red('Preflight checks failed. Fix the issues above and retry.'));
+          process.exitCode = 1;
+          return;
+        }
+      } catch (error) {
+        printError(error);
+        process.exitCode = 1;
+        return;
+      }
+
+      // Show plan
+      console.log();
+      printExecutionPlan(runPlan);
+
+      console.log();
+      console.log(chalk.dim(`Run ID: ${runPlan.id}`));
+      console.log(chalk.dim('Run "devassemble launch" to execute this plan.'));
+    });
+
+  program
     .command('init')
     .argument('<prompt>', 'Natural-language application brief')
     .description('Parse a prompt into a typed application plan.')
@@ -214,6 +277,78 @@ export function createProgram(): Command {
       console.log(`Run ${runPlan.id}: ${runPlan.status}`);
     });
 
+  program
+    .command('teardown')
+    .argument('[runId]', 'Run ID to tear down (defaults to the latest run)')
+    .description('Delete all resources created by a launch run.')
+    .action(async (runId?: string) => {
+      const cliApp = getApp();
+
+      // Load the run
+      let runPlan: RunPlan;
+      try {
+        runPlan = await cliApp.status(runId);
+      } catch (error) {
+        printError(error);
+        process.exitCode = 1;
+        return;
+      }
+
+      if (runPlan.status === 'rolled_back') {
+        console.log(chalk.yellow('This run has already been torn down.'));
+        return;
+      }
+
+      if (runPlan.status === 'draft') {
+        console.log(chalk.yellow('This run was never executed — nothing to tear down.'));
+        return;
+      }
+
+      const successfulTasks = runPlan.tasks.filter((t) => t.status === 'success');
+      if (successfulTasks.length === 0) {
+        console.log(chalk.yellow('No successfully completed tasks to tear down.'));
+        return;
+      }
+
+      // Show what will be deleted
+      console.log(chalk.bold('The following resources will be deleted:\n'));
+      const teardownItems = describeTeardownActions(successfulTasks);
+      for (const item of teardownItems) {
+        console.log(`  ${chalk.red('✗')} ${item}`);
+      }
+
+      console.log();
+      const confirmed = await promptConfirm('This is destructive and cannot be undone. Proceed?');
+      if (!confirmed) {
+        console.log(chalk.dim('Aborted.'));
+        return;
+      }
+
+      // Execute rollback
+      console.log();
+      const spinner = ora('Tearing down resources...').start();
+      try {
+        const result = await cliApp.rollback(runPlan.id);
+        spinner.stop();
+
+        for (const task of result.tasks) {
+          if (task.status === 'rolled_back') {
+            console.log(`  ${chalk.green('✓')} ${task.name} — removed`);
+          } else if (task.status === 'success') {
+            // Tasks that don't have rollback actions (like capture-keys)
+            console.log(`  ${chalk.dim('○')} ${task.name} — nothing to remove`);
+          }
+        }
+
+        console.log();
+        console.log(chalk.green('Teardown complete. All provisioned resources have been removed.'));
+      } catch (error) {
+        spinner.fail('Teardown failed');
+        printError(error);
+        process.exitCode = 1;
+      }
+    });
+
   const creds = program.command('creds').description('Manage provider credentials.');
   creds
     .command('add')
@@ -264,7 +399,7 @@ export function createProgram(): Command {
 
 function printDetectedServices(scan: ProjectScan): void {
   const providers = scan.detectedProviders.filter(
-    (p) => p.provider === 'neon' || p.provider === 'vercel',
+    (p) => p.provider !== 'github',
   );
   if (providers.length === 0) {
     return;
@@ -360,12 +495,53 @@ function printCompletionSummary(scan: ProjectScan, plan: RunPlan): void {
     const line = `   Repo:     ${repoUrl}`;
     console.log(`│${line}${' '.repeat(Math.max(0, 56 - line.length))}│`);
   }
+  const hasStripe = plan.tasks.some((t) => t.provider === 'stripe' && t.status === 'success');
+
   if (hasNeon) {
     const line = '   Database: Neon (connection string set in Vercel)';
     console.log(`│${line}${' '.repeat(Math.max(0, 56 - line.length))}│`);
   }
+  if (hasStripe) {
+    const mode = getTaskOutput(plan, 'stripe-capture-keys', 'mode') ?? 'unknown';
+    const line = `   Stripe:   ${mode} mode keys synced to Vercel`;
+    console.log(`│${line}${' '.repeat(Math.max(0, 56 - line.length))}│`);
+  }
   console.log(`│${' '.repeat(56)}│`);
   console.log(`└${border}┘`);
+
+  // Deployment Protection warning
+  if (previewUrl) {
+    console.log();
+    console.log(chalk.yellow('Note: Vercel preview deployments are protected by default.'));
+    console.log(chalk.yellow('The preview URL may return 401 for unauthenticated visitors.'));
+    console.log(chalk.dim('To disable: Vercel Dashboard → Project Settings → Deployment Protection'));
+  }
+
+  // Teardown hint
+  console.log();
+  console.log(chalk.dim(`Run "devassemble teardown" to remove all created resources.`));
+}
+
+function describeTeardownActions(tasks: Task[]): string[] {
+  const items: string[] = [];
+  for (const task of tasks) {
+    if (task.provider === 'github' && task.action === 'create-repo') {
+      const repoName = task.outputs.repoFullName ?? task.outputs.repoName ?? task.params.name;
+      items.push(`GitHub repository: ${repoName}`);
+    } else if (task.provider === 'neon' && task.action === 'create-project') {
+      const projectName = task.outputs.projectName ?? task.params.name;
+      items.push(`Neon project: ${projectName}`);
+    } else if (task.provider === 'vercel' && (task.action === 'create-project' || task.action === 'link-repository')) {
+      if (task.action === 'create-project') {
+        const projectName = task.outputs.projectName ?? task.params.name;
+        items.push(`Vercel project: ${projectName}`);
+      }
+    }
+  }
+  if (items.length === 0) {
+    items.push('No deletable resources found (only credential captures and deployments)');
+  }
+  return items;
 }
 
 function getTaskOutput(plan: RunPlan, taskId: string, key: string): string | undefined {

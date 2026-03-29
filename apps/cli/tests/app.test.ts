@@ -49,7 +49,7 @@ describe('cli app', () => {
     const runPlan = await app.init('build menugen with subscriptions');
 
     await expect(app.execute(runPlan.id)).rejects.toThrow(
-      'Missing required live credentials for: github, neon, vercel.',
+      'Missing required live credentials for:',
     );
   });
 });

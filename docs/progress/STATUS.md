@@ -17,7 +17,8 @@ user's code — all without the user touching any provider dashboard.
 | 3. Scan pivot, preflights, launch UX | Complete | 2026-03-28 |
 | 4. End-to-end demo validation | Complete | 2026-03-28 |
 | 5. Stripe provider + polish | Complete | 2026-03-29 |
-| 6. Polish, edge cases, Deployment Protection | **Next** | — |
+| 6. Teardown, plan, Deployment Protection | Complete | 2026-03-29 |
+| 7. Env sync (`env pull` / `env push`) | **Next** | — |
 
 ## What works
 
@@ -35,8 +36,13 @@ user's code — all without the user touching any provider dashboard.
   Branch resolution fallback, owner name inference from connection string.
 - **Vercel provider**: Create project, link to GitHub repo (with idempotent
   recreate), sync env vars, trigger deployment, poll for readiness.
+- **Stripe provider**: Validates secret key format and API, detects test/live mode,
+  captures keys for Vercel env var sync.
 - **CLI UX**: Scan summary, credential check, plan display, confirmation prompt,
-  per-task execution display, completion summary box.
+  per-task execution display, completion summary box with Deployment Protection warning.
+- **`devassemble plan`**: Dry-run command — scan, preflight, and plan without executing.
+- **`devassemble teardown`**: Destroys all resources created by a launch run with
+  confirmation and per-resource progress display.
 
 ## What doesn't work yet
 
@@ -53,8 +59,8 @@ user's code — all without the user touching any provider dashboard.
 
 1. GitHub Contents API is slow for large projects (one file per request). Need to
    switch to the Git Trees/Blobs API for repos with many files.
-2. Vercel preview deployments return 401 due to Deployment Protection. Need to
-   warn in completion summary or disable via API.
+2. Vercel preview deployments return 401 due to Deployment Protection. Warning
+   now shown in completion summary; disabling via API is a future improvement.
 3. Neon eventual consistency: solved with `waitForProjectReady()` polling, but
    similar patterns may appear with other providers.
 
