@@ -7,7 +7,7 @@ import ora from 'ora';
 import type { ProjectScan, RunPlan, Task } from '@devassemble/types';
 
 import { createCliApp } from './app.js';
-import type { PreflightCheckResults } from './app.js';
+import type { PreflightCheckResults, EnvPullResult, EnvPushResult } from './app.js';
 
 const FRAMEWORK_LABELS: Record<string, string> = {
   nextjs: 'Next.js',
@@ -344,6 +344,51 @@ export function createProgram(): Command {
         console.log(chalk.green('Teardown complete. All provisioned resources have been removed.'));
       } catch (error) {
         spinner.fail('Teardown failed');
+        printError(error);
+        process.exitCode = 1;
+      }
+    });
+
+  const env = program.command('env').description('Sync environment variables with Vercel.');
+  env
+    .command('pull')
+    .argument('[runId]', 'Run ID to pull env vars from (defaults to latest)')
+    .description('Pull environment variables from Vercel into .env.local.')
+    .action(async (runId?: string) => {
+      const cliApp = getApp();
+      const spinner = ora('Pulling environment variables from Vercel...').start();
+      try {
+        const result: EnvPullResult = await cliApp.envPull(runId);
+        spinner.succeed(`Pulled ${Object.keys(result.variables).length} variable(s) from ${result.projectName}`);
+        console.log();
+        for (const key of Object.keys(result.variables).sort()) {
+          console.log(`  ${chalk.green('✓')} ${key}`);
+        }
+        console.log();
+        console.log(chalk.dim(`Written to ${result.filePath}`));
+      } catch (error) {
+        spinner.fail('Failed to pull environment variables');
+        printError(error);
+        process.exitCode = 1;
+      }
+    });
+
+  env
+    .command('push')
+    .argument('[runId]', 'Run ID to push env vars to (defaults to latest)')
+    .description('Push local .env.local or .env variables to Vercel.')
+    .action(async (runId?: string) => {
+      const cliApp = getApp();
+      const spinner = ora('Pushing environment variables to Vercel...').start();
+      try {
+        const result: EnvPushResult = await cliApp.envPush(runId);
+        spinner.succeed(`Pushed ${result.pushed.length} variable(s) to ${result.projectName}`);
+        console.log();
+        for (const key of result.pushed) {
+          console.log(`  ${chalk.green('✓')} ${key}`);
+        }
+      } catch (error) {
+        spinner.fail('Failed to push environment variables');
         printError(error);
         process.exitCode = 1;
       }

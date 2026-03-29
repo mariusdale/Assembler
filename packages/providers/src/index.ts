@@ -37,6 +37,8 @@ export function createProviderRegistry(): Record<string, ProviderPack> {
   };
 }
 
+export { VercelClient } from './vercel/client.js';
+
 export {
   clerkProviderPack,
   cloudflareProviderPack,

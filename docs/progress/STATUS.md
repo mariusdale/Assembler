@@ -18,7 +18,8 @@ user's code — all without the user touching any provider dashboard.
 | 4. End-to-end demo validation | Complete | 2026-03-28 |
 | 5. Stripe provider + polish | Complete | 2026-03-29 |
 | 6. Teardown, plan, Deployment Protection | Complete | 2026-03-29 |
-| 7. Env sync (`env pull` / `env push`) | **Next** | — |
+| 7. Env sync (`env pull` / `env push`) | Complete | 2026-03-29 |
+| 8. Team onboarding (`devassemble setup`) | **Next** | — |
 
 ## What works
 
@@ -43,6 +44,8 @@ user's code — all without the user touching any provider dashboard.
 - **`devassemble plan`**: Dry-run command — scan, preflight, and plan without executing.
 - **`devassemble teardown`**: Destroys all resources created by a launch run with
   confirmation and per-resource progress display.
+- **`devassemble env pull`**: Pulls env vars from Vercel into `.env.local`.
+- **`devassemble env push`**: Pushes local `.env.local`/`.env` vars to Vercel.
 
 ## What doesn't work yet
 

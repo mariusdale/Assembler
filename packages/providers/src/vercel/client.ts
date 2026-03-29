@@ -122,6 +122,31 @@ export class VercelClient {
     );
   }
 
+  listProjectEnvVars(
+    projectIdOrName: string,
+  ): Promise<{
+    envs: Array<{
+      id: string;
+      key: string;
+      value: string;
+      target: string[];
+      type: string;
+    }>;
+  }> {
+    return requestJson<{
+      envs: Array<{
+        id: string;
+        key: string;
+        value: string;
+        target: string[];
+        type: string;
+      }>;
+    }>(this.apiUrl(`/v9/projects/${projectIdOrName}/env?decrypt=true`), {
+      method: 'GET',
+      headers: this.headers(),
+    });
+  }
+
   createDeployment(input: {
     name: string;
     project: string;

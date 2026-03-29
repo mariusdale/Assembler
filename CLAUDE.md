@@ -4,10 +4,10 @@ DevAssemble is a CLI tool that provisions infrastructure and deploys existing pr
 It does NOT generate code. Users build their app, then run `devassemble launch` from
 their project directory to go live without touching any provider dashboards.
 
-## Current milestone: Provider expansion (Milestone 5)
+## Current milestone: Team onboarding (Milestone 8)
 
-Milestones 1-4 are complete (skeleton, live providers, scan pivot, e2e validation).
-Milestone 5 adds Stripe as the fourth live provider and expands credential handling.
+Milestones 1-7 are complete. The CLI now has launch, plan, teardown, and env sync.
+Milestone 8 adds `devassemble setup` for new team member onboarding.
 
 ## Architecture
 
@@ -24,6 +24,8 @@ apps/web/          Placeholder — no web dashboard in scope
 - `devassemble launch` — scan → preflight → plan → confirm → execute → summary
 - `devassemble plan` — scan → preflight → plan display (dry run, no execution)
 - `devassemble teardown [runId]` — roll back all resources created by a launch run
+- `devassemble env pull [runId]` — pull env vars from Vercel into `.env.local`
+- `devassemble env push [runId]` — push local `.env.local`/`.env` to Vercel
 - `devassemble init <prompt>` — old LLM/heuristic path (AppSpec-based, not used by launch)
 - `devassemble execute` / `resume` / `rollback` — operate on stored run plans
 

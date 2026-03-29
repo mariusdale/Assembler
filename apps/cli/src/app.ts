@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import {
@@ -10,7 +10,7 @@ import {
   scanProject,
   SqliteRunStateStore,
 } from '@devassemble/core';
-import { createProviderRegistry } from '@devassemble/providers';
+import { createProviderRegistry, VercelClient } from '@devassemble/providers';
 import type { AppSpec, Credentials, DiscoveryResult, ProjectScan, RunEvent, RunPlan } from '@devassemble/types';
 
 const STATE_DIRECTORY_NAME = '.devassemble';
@@ -35,9 +35,22 @@ export interface CliApp {
   events(runId?: string): Promise<RunEvent[]>;
   resume(runId: string): Promise<RunPlan>;
   rollback(runId: string): Promise<RunPlan>;
+  envPull(runId?: string): Promise<EnvPullResult>;
+  envPush(runId?: string): Promise<EnvPushResult>;
   addCredential(provider: string, entries: string[]): Promise<void>;
   listCredentials(): Promise<string[]>;
   discover(provider: string): Promise<DiscoveryResult>;
+}
+
+export interface EnvPullResult {
+  filePath: string;
+  variables: Record<string, string>;
+  projectName: string;
+}
+
+export interface EnvPushResult {
+  pushed: string[];
+  projectName: string;
 }
 
 export function createCliApp(cwd = process.cwd()): CliApp {
@@ -147,6 +160,48 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       return result.runPlan;
     },
     rollback: async (runId: string): Promise<RunPlan> => executor.rollback(runId),
+    envPull: async (runId?: string): Promise<EnvPullResult> => {
+      const { client, projectName } = resolveVercelProject(stateStore, runId);
+      const { envs } = await client.listProjectEnvVars(projectName);
+
+      const variables: Record<string, string> = {};
+      for (const env of envs) {
+        if (env.value && env.key) {
+          variables[env.key] = env.value;
+        }
+      }
+
+      const filePath = resolve(cwd, '.env.local');
+      const content = formatEnvFile(variables);
+      writeFileSync(filePath, content, 'utf8');
+
+      return { filePath, variables, projectName };
+    },
+    envPush: async (runId?: string): Promise<EnvPushResult> => {
+      const { client, projectName } = resolveVercelProject(stateStore, runId);
+      const variables = readLocalEnvFile(cwd);
+
+      if (Object.keys(variables).length === 0) {
+        throw new Error(
+          'No environment variables found. Create a .env.local or .env file first.',
+        );
+      }
+
+      const allTargets: Array<'preview' | 'production'> = ['preview', 'production'];
+      const pushed: string[] = [];
+
+      for (const [key, value] of Object.entries(variables)) {
+        await client.createProjectEnv(projectName, {
+          key,
+          value,
+          target: allTargets,
+          type: 'encrypted',
+        });
+        pushed.push(key);
+      }
+
+      return { pushed, projectName };
+    },
     addCredential: (provider: string, entries: string[]): Promise<void> => {
       const parsed = parseCredentialInput(entries);
       stateStore.putCredentialRecord({
@@ -399,4 +454,78 @@ export async function runPreflightChecks(
   }
 
   return { results, allValid };
+}
+
+function resolveVercelProject(
+  stateStore: SqliteRunStateStore,
+  runId?: string,
+): { client: VercelClient; projectName: string } {
+  const targetRunId = runId ?? stateStore.listRuns()[0]?.id;
+  if (!targetRunId) {
+    throw new Error('No runs found. Run "devassemble launch" first.');
+  }
+
+  const runPlan = stateStore.loadRun(targetRunId);
+  if (!runPlan) {
+    throw new Error(`Run "${targetRunId}" was not found.`);
+  }
+
+  const vercelTask =
+    runPlan.tasks.find((t) => t.id === 'vercel-create-project' && t.status === 'success') ??
+    runPlan.tasks.find((t) => t.id === 'vercel-link-repository' && t.status === 'success');
+
+  const projectName =
+    (vercelTask?.outputs.projectId as string | undefined) ??
+    (vercelTask?.outputs.projectName as string | undefined);
+
+  if (!projectName) {
+    throw new Error(
+      'No Vercel project found in this run. Run "devassemble launch" first to create one.',
+    );
+  }
+
+  const vercelRecord = stateStore.getCredentialRecord('vercel');
+  if (!vercelRecord) {
+    throw new Error(
+      'No Vercel credentials found. Add them with "devassemble creds add vercel token=<tok>".',
+    );
+  }
+
+  const client = new VercelClient(resolveCredentials('vercel', vercelRecord));
+  return { client, projectName };
+}
+
+function readLocalEnvFile(cwd: string): Record<string, string> {
+  const candidates = ['.env.local', '.env'];
+  for (const filename of candidates) {
+    const filePath = resolve(cwd, filename);
+    if (existsSync(filePath)) {
+      return parseEnvFile(readFileSync(filePath, 'utf8'));
+    }
+  }
+  return {};
+}
+
+function parseEnvFile(content: string): Record<string, string> {
+  const vars: Record<string, string> = {};
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIndex = trimmed.indexOf('=');
+    if (eqIndex <= 0) continue;
+    const key = trimmed.slice(0, eqIndex).trim();
+    const value = trimmed.slice(eqIndex + 1).trim();
+    if (key) vars[key] = value;
+  }
+  return vars;
+}
+
+function formatEnvFile(variables: Record<string, string>): string {
+  const lines = ['# Generated by devassemble env pull', `# ${new Date().toISOString()}`, ''];
+  const sorted = Object.entries(variables).sort(([a], [b]) => a.localeCompare(b));
+  for (const [key, value] of sorted) {
+    lines.push(`${key}=${value}`);
+  }
+  lines.push('');
+  return lines.join('\n');
 }
