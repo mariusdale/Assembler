@@ -2,7 +2,7 @@ import type { Credentials } from '@devassemble/types';
 
 import { requestJson } from '../shared/http.js';
 
-interface VercelProjectResponse {
+export interface VercelProjectResponse {
   id: string;
   name: string;
   link?: {
@@ -53,6 +53,22 @@ export class VercelClient {
         headers: this.headers(),
       },
     );
+  }
+
+  listProjects(filters?: {
+    repoUrl?: string;
+    repo?: string;
+    limit?: number;
+  }): Promise<{ projects: VercelProjectResponse[] }> {
+    const url = new URL(this.apiUrl('/v10/projects'));
+    if (filters?.repoUrl) url.searchParams.set('repoUrl', filters.repoUrl);
+    if (filters?.repo) url.searchParams.set('repo', filters.repo);
+    if (filters?.limit) url.searchParams.set('limit', String(filters.limit));
+
+    return requestJson<{ projects: VercelProjectResponse[] }>(url.toString(), {
+      method: 'GET',
+      headers: this.headers(),
+    });
   }
 
   createProject(input: {

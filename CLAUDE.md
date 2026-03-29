@@ -4,10 +4,10 @@ DevAssemble is a CLI tool that provisions infrastructure and deploys existing pr
 It does NOT generate code. Users build their app, then run `devassemble launch` from
 their project directory to go live without touching any provider dashboards.
 
-## Current milestone: Team onboarding (Milestone 8)
+## Current milestone: Preview environments (Milestone 9)
 
-Milestones 1-7 are complete. The CLI now has launch, plan, teardown, and env sync.
-Milestone 8 adds `devassemble setup` for new team member onboarding.
+Milestones 1-8 are complete. The CLI has launch, setup, plan, teardown, and env sync.
+Milestone 9 adds `devassemble preview` for per-branch isolated environments.
 
 ## Architecture
 
@@ -26,6 +26,7 @@ apps/web/          Placeholder — no web dashboard in scope
 - `devassemble teardown [runId]` — roll back all resources created by a launch run
 - `devassemble env pull [runId]` — pull env vars from Vercel into `.env.local`
 - `devassemble env push [runId]` — push local `.env.local`/`.env` to Vercel
+- `devassemble setup` — onboard new team member (find Vercel project, pull env vars)
 - `devassemble init <prompt>` — old LLM/heuristic path (AppSpec-based, not used by launch)
 - `devassemble execute` / `resume` / `rollback` — operate on stored run plans
 

@@ -19,7 +19,8 @@ user's code — all without the user touching any provider dashboard.
 | 5. Stripe provider + polish | Complete | 2026-03-29 |
 | 6. Teardown, plan, Deployment Protection | Complete | 2026-03-29 |
 | 7. Env sync (`env pull` / `env push`) | Complete | 2026-03-29 |
-| 8. Team onboarding (`devassemble setup`) | **Next** | — |
+| 8. Team onboarding (`devassemble setup`) | Complete | 2026-03-29 |
+| 9. Preview environments (`devassemble preview`) | **Next** | — |
 
 ## What works
 
@@ -46,6 +47,8 @@ user's code — all without the user touching any provider dashboard.
   confirmation and per-resource progress display.
 - **`devassemble env pull`**: Pulls env vars from Vercel into `.env.local`.
 - **`devassemble env push`**: Pushes local `.env.local`/`.env` vars to Vercel.
+- **`devassemble setup`**: Onboards new team members — auto-discovers Vercel project
+  from git remote, pulls env vars to `.env.local`.
 
 ## What doesn't work yet
 

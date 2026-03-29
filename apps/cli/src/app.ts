@@ -37,6 +37,7 @@ export interface CliApp {
   rollback(runId: string): Promise<RunPlan>;
   envPull(runId?: string): Promise<EnvPullResult>;
   envPush(runId?: string): Promise<EnvPushResult>;
+  setup(): Promise<SetupResult>;
   addCredential(provider: string, entries: string[]): Promise<void>;
   listCredentials(): Promise<string[]>;
   discover(provider: string): Promise<DiscoveryResult>;
@@ -51,6 +52,14 @@ export interface EnvPullResult {
 export interface EnvPushResult {
   pushed: string[];
   projectName: string;
+}
+
+export interface SetupResult {
+  projectScan: ProjectScan;
+  vercelProjectName: string;
+  envVarCount: number;
+  envFilePath: string;
+  missingCredentials: string[];
 }
 
 export function createCliApp(cwd = process.cwd()): CliApp {
@@ -160,6 +169,80 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       return result.runPlan;
     },
     rollback: async (runId: string): Promise<RunPlan> => executor.rollback(runId),
+    setup: async (): Promise<SetupResult> => {
+      // 1. Scan the project
+      const projectScan = await scanProject(cwd);
+
+      // 2. Check which credentials we have / are missing
+      const detectedProviderNames = [
+        ...new Set(projectScan.detectedProviders.map((p) => p.provider)),
+      ].filter((p) => REQUIRED_LIVE_PROVIDERS.has(p));
+      // Vercel is always needed for setup (even if not explicitly detected)
+      if (!detectedProviderNames.includes('vercel')) {
+        detectedProviderNames.push('vercel');
+      }
+
+      const missingCredentials = detectedProviderNames.filter(
+        (p) => !stateStore.getCredentialRecord(p),
+      );
+
+      // 3. Must have Vercel credentials to proceed
+      const vercelRecord = stateStore.getCredentialRecord('vercel');
+      if (!vercelRecord) {
+        throw new Error(
+          'Vercel credentials are required for setup. Add them with "devassemble creds add vercel token=<tok>".',
+        );
+      }
+
+      const vercelCreds = resolveCredentials('vercel', vercelRecord);
+      const client = new VercelClient(vercelCreds);
+
+      // 4. Find the Vercel project linked to this git remote
+      let vercelProjectName: string | undefined;
+
+      if (projectScan.gitRemoteUrl) {
+        const repoUrl = normalizeGitUrl(projectScan.gitRemoteUrl);
+        const { projects } = await client.listProjects({ repoUrl, limit: 1 });
+        vercelProjectName = projects[0]?.name;
+      }
+
+      // Fallback: try project name directly
+      if (!vercelProjectName) {
+        try {
+          const project = await client.getProject(toSlug(projectScan.name));
+          vercelProjectName = project.name;
+        } catch {
+          // Project not found — that's fine, we'll throw below
+        }
+      }
+
+      if (!vercelProjectName) {
+        throw new Error(
+          `Could not find a Vercel project linked to this repository. Run "devassemble launch" first to create one.`,
+        );
+      }
+
+      // 5. Pull env vars
+      const { envs } = await client.listProjectEnvVars(vercelProjectName);
+      const variables: Record<string, string> = {};
+      for (const env of envs) {
+        if (env.value && env.key) {
+          variables[env.key] = env.value;
+        }
+      }
+
+      const envFilePath = resolve(cwd, '.env.local');
+      const content = formatEnvFile(variables);
+      writeFileSync(envFilePath, content, 'utf8');
+
+      return {
+        projectScan,
+        vercelProjectName,
+        envVarCount: Object.keys(variables).length,
+        envFilePath,
+        missingCredentials: missingCredentials.filter((p) => p !== 'vercel'),
+      };
+    },
     envPull: async (runId?: string): Promise<EnvPullResult> => {
       const { client, projectName } = resolveVercelProject(stateStore, runId);
       const { envs } = await client.listProjectEnvVars(projectName);
@@ -493,6 +576,23 @@ function resolveVercelProject(
 
   const client = new VercelClient(resolveCredentials('vercel', vercelRecord));
   return { client, projectName };
+}
+
+function normalizeGitUrl(gitUrl: string): string {
+  // Convert SSH format to HTTPS for Vercel API matching
+  const sshMatch = gitUrl.match(/git@github\.com:(.+?)\/(.+?)(?:\.git)?$/);
+  if (sshMatch) {
+    return `https://github.com/${sshMatch[1]}/${sshMatch[2]}`;
+  }
+  return gitUrl.replace(/\.git$/, '');
+}
+
+function toSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 63) || 'devassemble-app';
 }
 
 function readLocalEnvFile(cwd: string): Record<string, string> {

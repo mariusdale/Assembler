@@ -7,7 +7,7 @@ import ora from 'ora';
 import type { ProjectScan, RunPlan, Task } from '@devassemble/types';
 
 import { createCliApp } from './app.js';
-import type { PreflightCheckResults, EnvPullResult, EnvPushResult } from './app.js';
+import type { PreflightCheckResults, EnvPullResult, EnvPushResult, SetupResult } from './app.js';
 
 const FRAMEWORK_LABELS: Record<string, string> = {
   nextjs: 'Next.js',
@@ -141,6 +141,46 @@ export function createProgram(): Command {
       }
 
       printCompletionSummary(projectScan, finalPlan);
+    });
+
+  program
+    .command('setup')
+    .description('Set up a local dev environment for an already-launched project.')
+    .action(async () => {
+      const cliApp = getApp();
+
+      // Phase 1: Scan
+      const scanSpinner = ora('Scanning project...').start();
+      let result: SetupResult;
+      try {
+        scanSpinner.text = 'Scanning project and finding Vercel project...';
+        result = await cliApp.setup();
+        scanSpinner.succeed('Local environment configured');
+      } catch (error) {
+        scanSpinner.fail('Setup failed');
+        printError(error);
+        process.exitCode = 1;
+        return;
+      }
+
+      // Show what happened
+      const frameworkLabel = FRAMEWORK_LABELS[result.projectScan.framework] ?? result.projectScan.framework;
+      console.log();
+      console.log(chalk.bold('Setup complete:'));
+      console.log(`  ${chalk.green('✓')} ${frameworkLabel} project detected`);
+      console.log(`  ${chalk.green('✓')} Vercel project: ${chalk.cyan(result.vercelProjectName)}`);
+      console.log(`  ${chalk.green('✓')} ${result.envVarCount} env var(s) written to ${chalk.dim('.env.local')}`);
+
+      if (result.missingCredentials.length > 0) {
+        console.log();
+        console.log(chalk.yellow('Missing provider credentials (not required for local dev):'));
+        for (const provider of result.missingCredentials) {
+          console.log(`  ${chalk.yellow('!')} ${capitalise(provider)}: run ${chalk.dim(`devassemble creds add ${provider} <token>`)}`);
+        }
+      }
+
+      console.log();
+      console.log(chalk.dim('You can now run your dev server. Env vars are in .env.local.'));
     });
 
   program
