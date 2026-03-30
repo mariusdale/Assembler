@@ -10,3 +10,6 @@ coverage/
 .env.*
 !.env.example
 ~$*.docx
+.next/
+next-env.d.ts
+.Rhistory

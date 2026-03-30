@@ -80,5 +80,5 @@ packages/core/           Planner + executor
 packages/providers/      GitHub, Neon, Stripe, Vercel implementations
 docs/                    Learnings and task specs
 docs/progress/           Session logs and status tracking
-test-fixtures/           Test projects for live validation
+tests/fixtures/          Test projects for live validation
 ```
