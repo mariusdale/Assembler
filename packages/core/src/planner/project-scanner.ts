@@ -6,6 +6,8 @@ import { promisify } from 'node:util';
 import type {
   DetectedProvider,
   EnvVarRequirement,
+  LockfileCheck,
+  PackageManager,
   ProjectFramework,
   ProjectScan,
 } from '@devassemble/types';
@@ -26,10 +28,11 @@ export async function scanProject(directory: string): Promise<ProjectScan> {
   const packageJson = await readPackageJson(projectDirectory);
   const packageName = getPackageName(packageJson) ?? basename(projectDirectory);
   const framework = detectFramework(packageJson);
-  const [gitRemoteUrl, requiredEnvVars, detectedProviders] = await Promise.all([
+  const [gitRemoteUrl, requiredEnvVars, detectedProviders, lockfileCheck] = await Promise.all([
     getGitRemoteUrl(projectDirectory),
     collectEnvRequirements(projectDirectory),
     detectProviders(projectDirectory, packageJson),
+    checkLockfileSync(projectDirectory, packageJson),
   ]);
 
   mergeEnvVarProvidersIntoDetectedProviders(requiredEnvVars, detectedProviders);
@@ -43,6 +46,7 @@ export async function scanProject(directory: string): Promise<ProjectScan> {
     detectedProviders: sortDetectedProviders(detectedProviders),
     requiredEnvVars: requiredEnvVars.sort((left, right) => left.name.localeCompare(right.name)),
     packageJson,
+    lockfileCheck,
   };
 }
 
@@ -346,4 +350,174 @@ function inferProviderFromEnvVar(name: string): string | undefined {
 
 function isAutoProvisionableEnvVar(name: string): boolean {
   return inferProviderFromEnvVar(name) !== undefined;
+}
+
+const LOCKFILE_TO_MANAGER: Record<string, PackageManager> = {
+  'pnpm-lock.yaml': 'pnpm',
+  'package-lock.json': 'npm',
+  'yarn.lock': 'yarn',
+};
+
+async function checkLockfileSync(
+  directory: string,
+  packageJson: Record<string, unknown>,
+): Promise<LockfileCheck> {
+  const manifestDeps = getManifestDependencyNames(packageJson);
+
+  for (const [filename, manager] of Object.entries(LOCKFILE_TO_MANAGER)) {
+    const lockfilePath = join(directory, filename);
+    let raw: string;
+    try {
+      raw = await readFile(lockfilePath, 'utf8');
+    } catch {
+      continue;
+    }
+
+    const lockfileDeps = extractLockfileDependencyNames(raw, manager);
+    const missingFromLockfile = [...manifestDeps].filter((dep) => !lockfileDeps.has(dep));
+    const extraInLockfile = [...lockfileDeps].filter((dep) => !manifestDeps.has(dep));
+    const inSync = missingFromLockfile.length === 0 && extraInLockfile.length === 0;
+
+    return { packageManager: manager, lockfileExists: true, inSync, missingFromLockfile, extraInLockfile };
+  }
+
+  return {
+    packageManager: undefined,
+    lockfileExists: false,
+    inSync: false,
+    missingFromLockfile: [...manifestDeps],
+    extraInLockfile: [],
+  };
+}
+
+function getManifestDependencyNames(packageJson: Record<string, unknown>): Set<string> {
+  const names = new Set<string>();
+  for (const field of ['dependencies', 'devDependencies'] as const) {
+    const section = packageJson[field];
+    if (typeof section === 'object' && section !== null && !Array.isArray(section)) {
+      for (const name of Object.keys(section)) {
+        names.add(name);
+      }
+    }
+  }
+  return names;
+}
+
+function extractLockfileDependencyNames(raw: string, manager: PackageManager): Set<string> {
+  switch (manager) {
+    case 'pnpm':
+      return extractPnpmDeps(raw);
+    case 'npm':
+      return extractNpmDeps(raw);
+    case 'yarn':
+      return extractYarnDeps(raw);
+  }
+}
+
+function extractPnpmDeps(raw: string): Set<string> {
+  // pnpm-lock.yaml v6+ has an importers section with '.' as the root.
+  // We look for dependency names under importers['.'].dependencies and devDependencies.
+  // Lines like:   '  package-name:' under the right section.
+  const deps = new Set<string>();
+  const lines = raw.split(/\r?\n/);
+  let inRootImporter = false;
+  let inDepsSection = false;
+
+  for (const line of lines) {
+    // Match importers: → '.': block
+    if (/^importers:/.test(line)) {
+      inRootImporter = false;
+      inDepsSection = false;
+      continue;
+    }
+    if (inRootImporter === false && /^\s{2}'?\.['"]?:/.test(line)) {
+      inRootImporter = true;
+      inDepsSection = false;
+      continue;
+    }
+    if (inRootImporter && /^\s{4}(?:dependencies|devDependencies|optionalDependencies):/.test(line)) {
+      inDepsSection = true;
+      continue;
+    }
+    // Exit sections on de-indent
+    if (inRootImporter && /^\S/.test(line) && line.trim() !== '') {
+      inRootImporter = false;
+      inDepsSection = false;
+      continue;
+    }
+    if (inDepsSection && /^\s{4}\S/.test(line) && !/^\s{4}\s/.test(line.replace(/^\s{4}/, '  '))) {
+      // New top-level key under root importer that isn't a dep entry
+      if (/^\s{4}(?:dependencies|devDependencies|optionalDependencies):/.test(line)) {
+        continue;
+      }
+      if (!/^\s{6}/.test(line) && !/^\s{4}\s/.test(line)) {
+        inDepsSection = false;
+      }
+    }
+    if (inDepsSection) {
+      // Dep entries look like: '      package-name:' or '      '@scope/name':'
+      const match = /^\s{6}'?(@?[^:'\s][^:']*)'?:/.exec(line);
+      if (match?.[1]) {
+        deps.add(match[1]);
+      }
+    }
+  }
+
+  return deps;
+}
+
+function extractNpmDeps(raw: string): Set<string> {
+  // package-lock.json v2/v3: packages[""] has dependencies as keys
+  try {
+    const lockfile = JSON.parse(raw) as Record<string, unknown>;
+    const deps = new Set<string>();
+
+    // v2/v3 format: packages."" contains the root project
+    const packages = lockfile.packages as Record<string, unknown> | undefined;
+    if (packages && typeof packages === 'object') {
+      const root = packages[''] as Record<string, unknown> | undefined;
+      if (root) {
+        for (const field of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
+          const section = root[field];
+          if (typeof section === 'object' && section !== null) {
+            for (const name of Object.keys(section)) {
+              deps.add(name);
+            }
+          }
+        }
+        return deps;
+      }
+    }
+
+    // v1 format: top-level dependencies
+    const topDeps = lockfile.dependencies as Record<string, unknown> | undefined;
+    if (topDeps && typeof topDeps === 'object') {
+      for (const name of Object.keys(topDeps)) {
+        deps.add(name);
+      }
+    }
+
+    return deps;
+  } catch {
+    return new Set();
+  }
+}
+
+function extractYarnDeps(raw: string): Set<string> {
+  // yarn.lock lists entries like: "package-name@^version": or package-name@^version:
+  const deps = new Set<string>();
+  for (const line of raw.split(/\r?\n/)) {
+    // Match lines like: "react@^18.0.0": or react@^18.0.0:
+    const match = /^"?(@?[^@"\s][^@"]*?)@[^:]+:?\s*$/.exec(line);
+    if (match?.[1]) {
+      // yarn.lock can combine multiple version ranges with ", " — take each package name
+      for (const segment of match[1].split(/, "?/)) {
+        const nameMatch = /^(@?[^@"\s][^@"]*)/.exec(segment);
+        if (nameMatch?.[1]) {
+          deps.add(nameMatch[1]);
+        }
+      }
+    }
+  }
+  return deps;
 }

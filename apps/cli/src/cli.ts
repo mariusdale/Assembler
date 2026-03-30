@@ -65,6 +65,32 @@ export function createProgram(): Command {
       // Show detected services
       printDetectedServices(projectScan);
 
+      // Lockfile check
+      const lc = projectScan.lockfileCheck;
+      if (!lc.lockfileExists) {
+        console.log();
+        console.log(chalk.red('✗ No lockfile found (package-lock.json, pnpm-lock.yaml, or yarn.lock).'));
+        console.log(chalk.dim('  → Run your package manager\'s install command to generate one, then commit it.'));
+        console.log(chalk.dim('  → Vercel and other CI hosts require a lockfile to build your project.'));
+        process.exitCode = 1;
+        return;
+      }
+      if (!lc.inSync) {
+        console.log();
+        console.log(chalk.red(`✗ ${lc.packageManager ?? 'Package'} lockfile is out of sync with package.json.`));
+        if (lc.missingFromLockfile.length > 0) {
+          console.log(chalk.dim(`  Added in package.json but missing from lockfile: ${lc.missingFromLockfile.join(', ')}`));
+        }
+        if (lc.extraInLockfile.length > 0) {
+          console.log(chalk.dim(`  In lockfile but removed from package.json: ${lc.extraInLockfile.join(', ')}`));
+        }
+        const installCmd = lc.packageManager === 'pnpm' ? 'pnpm install' : lc.packageManager === 'yarn' ? 'yarn install' : 'npm install';
+        console.log(chalk.dim(`  → Run "${installCmd}" and commit the updated lockfile.`));
+        console.log(chalk.dim('  → Vercel builds with --frozen-lockfile and will reject mismatched lockfiles.'));
+        process.exitCode = 1;
+        return;
+      }
+
       // Phase 2: Create plan
       const runPlan = cliApp.createPlan(projectScan);
 

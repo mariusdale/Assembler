@@ -44,6 +44,16 @@ export interface EnvVarRequirement {
   isAutoProvisionable: boolean;
 }
 
+export type PackageManager = 'npm' | 'pnpm' | 'yarn';
+
+export interface LockfileCheck {
+  packageManager: PackageManager | undefined;
+  lockfileExists: boolean;
+  inSync: boolean;
+  missingFromLockfile: string[];
+  extraInLockfile: string[];
+}
+
 export interface ProjectScan {
   name: string;
   framework: ProjectFramework;
@@ -53,6 +63,7 @@ export interface ProjectScan {
   detectedProviders: DetectedProvider[];
   requiredEnvVars: EnvVarRequirement[];
   packageJson: Record<string, unknown>;
+  lockfileCheck: LockfileCheck;
 }
 
 export type TaskStatus =

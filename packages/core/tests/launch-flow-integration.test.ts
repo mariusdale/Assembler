@@ -54,6 +54,13 @@ function createFixtureScan(directory: string): ProjectScan {
         'drizzle-orm': '0.30.0',
       },
     },
+    lockfileCheck: {
+      packageManager: 'pnpm',
+      lockfileExists: true,
+      inSync: true,
+      missingFromLockfile: [],
+      extraInLockfile: [],
+    },
   };
 }
 
