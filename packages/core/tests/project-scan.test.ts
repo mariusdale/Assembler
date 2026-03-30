@@ -254,6 +254,37 @@ describe('lockfile check', () => {
     expect(scan.lockfileCheck.inSync).toBe(true);
     expect(scan.lockfileCheck.missingFromLockfile).toEqual([]);
   });
+
+  it('skips monorepo lockfile when project is not a workspace member', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'devassemble-mono-'));
+    const outsideDir = join(root, 'external', 'not-in-workspace');
+    await mkdir(outsideDir, { recursive: true });
+    await createProjectWithPackageJson(outsideDir, { express: '^4.0.0' });
+    // Root lockfile only has workspace members — not this project
+    await writeFile(
+      join(root, 'pnpm-lock.yaml'),
+      [
+        "lockfileVersion: '9.0'",
+        'importers:',
+        '  .:',
+        '    dependencies:',
+        '      turbo:',
+        '        specifier: ^2.0.0',
+        '        version: 2.0.0',
+        '  apps/web:',
+        '    dependencies:',
+        '      next:',
+        '        specifier: ^15.0.0',
+        '        version: 15.0.0',
+        'packages:',
+        '  next@15.0.0:',
+        '    resolution: {integrity: sha512-abc}',
+      ].join('\n'),
+    );
+
+    const scan = await scanProject(outsideDir);
+    expect(scan.lockfileCheck.lockfileExists).toBe(false);
+  });
 });
 
 describe('scan-driven planner', () => {

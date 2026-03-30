@@ -382,6 +382,12 @@ async function checkLockfileSync(
       // Compute the relative path so parsers can locate the right importer entry.
       const importerKey = current === resolve(directory) ? '.' : relative(current, resolve(directory));
       const lockfileDeps = extractLockfileDependencyNames(raw, manager, importerKey);
+      // If the lockfile doesn't contain an entry for this project (e.g. a
+      // monorepo lockfile that doesn't include this sub-directory as a
+      // workspace member), skip it and keep searching.
+      if (lockfileDeps === undefined) {
+        continue;
+      }
       const missingFromLockfile = [...manifestDeps].filter((dep) => !lockfileDeps.has(dep));
       const extraInLockfile = [...lockfileDeps].filter((dep) => !manifestDeps.has(dep));
       const inSync = missingFromLockfile.length === 0 && extraInLockfile.length === 0;
@@ -418,7 +424,7 @@ function getManifestDependencyNames(packageJson: Record<string, unknown>): Set<s
   return names;
 }
 
-function extractLockfileDependencyNames(raw: string, manager: PackageManager, importerKey: string): Set<string> {
+function extractLockfileDependencyNames(raw: string, manager: PackageManager, importerKey: string): Set<string> | undefined {
   switch (manager) {
     case 'pnpm':
       return extractPnpmDeps(raw, importerKey);
@@ -429,12 +435,14 @@ function extractLockfileDependencyNames(raw: string, manager: PackageManager, im
   }
 }
 
-function extractPnpmDeps(raw: string, importerKey: string): Set<string> {
+function extractPnpmDeps(raw: string, importerKey: string): Set<string> | undefined {
   // pnpm-lock.yaml v6+ has an importers section keyed by relative path.
   // Root packages use '.', monorepo sub-packages use paths like 'apps/my-app'.
+  // Returns undefined if the importer key isn't found in the lockfile.
   const deps = new Set<string>();
   const lines = raw.split(/\r?\n/);
   let inImporters = false;
+  let foundImporter = false;
   let inTargetImporter = false;
   let inDepsSection = false;
 
@@ -457,6 +465,7 @@ function extractPnpmDeps(raw: string, importerKey: string): Set<string> {
       continue;
     }
     if (inImporters && !inTargetImporter && importerPattern.test(line)) {
+      foundImporter = true;
       inTargetImporter = true;
       inDepsSection = false;
       continue;
@@ -484,7 +493,7 @@ function extractPnpmDeps(raw: string, importerKey: string): Set<string> {
     }
   }
 
-  return deps;
+  return foundImporter ? deps : undefined;
 }
 
 function extractNpmDeps(raw: string): Set<string> {
