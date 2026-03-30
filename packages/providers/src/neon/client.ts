@@ -20,6 +20,15 @@ export interface NeonBranchResponse {
     id: string;
     name: string;
   };
+  endpoints?: Array<{
+    id: string;
+    host: string;
+    type: string;
+  }>;
+  connection_uris?: Array<{
+    connection_uri: string;
+    database_name?: string;
+  }>;
 }
 
 export interface NeonBranchListResponse {
@@ -134,6 +143,16 @@ export class NeonClient {
       `https://console.neon.tech/api/v2/projects/${projectId}/branches`,
       {
         method: 'GET',
+        headers: this.headers(),
+      },
+    );
+  }
+
+  async deleteBranch(projectId: string, branchId: string): Promise<void> {
+    await requestJson<Record<string, never>>(
+      `https://console.neon.tech/api/v2/projects/${projectId}/branches/${branchId}`,
+      {
+        method: 'DELETE',
         headers: this.headers(),
       },
     );

@@ -7,7 +7,7 @@ import ora from 'ora';
 import type { ProjectScan, RunPlan, Task } from '@devassemble/types';
 
 import { createCliApp } from './app.js';
-import type { PreflightCheckResults, EnvPullResult, EnvPushResult, SetupResult } from './app.js';
+import type { PreflightCheckResults, EnvPullResult, EnvPushResult, SetupResult, DomainAddResult, PreviewResult, PreviewTeardownResult } from './app.js';
 
 const FRAMEWORK_LABELS: Record<string, string> = {
   nextjs: 'Next.js',
@@ -22,6 +22,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   vercel: 'Hosting: Vercel',
   clerk: 'Auth: Clerk',
   stripe: 'Payments: Stripe',
+  cloudflare: 'DNS: Cloudflare',
   resend: 'Email: Resend',
   sentry: 'Error Tracking: Sentry',
   posthog: 'Analytics: PostHog',
@@ -145,42 +146,108 @@ export function createProgram(): Command {
 
   program
     .command('setup')
-    .description('Set up a local dev environment for an already-launched project.')
+    .description('Guided credential setup for GitHub, Neon, and Vercel.')
     .action(async () => {
       const cliApp = getApp();
 
-      // Phase 1: Scan
-      const scanSpinner = ora('Scanning project...').start();
-      let result: SetupResult;
-      try {
-        scanSpinner.text = 'Scanning project and finding Vercel project...';
-        result = await cliApp.setup();
-        scanSpinner.succeed('Local environment configured');
-      } catch (error) {
-        scanSpinner.fail('Setup failed');
-        printError(error);
-        process.exitCode = 1;
-        return;
-      }
-
-      // Show what happened
-      const frameworkLabel = FRAMEWORK_LABELS[result.projectScan.framework] ?? result.projectScan.framework;
       console.log();
-      console.log(chalk.bold('Setup complete:'));
-      console.log(`  ${chalk.green('✓')} ${frameworkLabel} project detected`);
-      console.log(`  ${chalk.green('✓')} Vercel project: ${chalk.cyan(result.vercelProjectName)}`);
-      console.log(`  ${chalk.green('✓')} ${result.envVarCount} env var(s) written to ${chalk.dim('.env.local')}`);
+      console.log(chalk.bold('Welcome to DevAssemble!') + " Let's set up your provider credentials.");
+      console.log(chalk.dim("This takes about 5 minutes. You'll need accounts on GitHub, Neon, and Vercel."));
+      console.log();
 
-      if (result.missingCredentials.length > 0) {
-        console.log();
-        console.log(chalk.yellow('Missing provider credentials (not required for local dev):'));
-        for (const provider of result.missingCredentials) {
-          console.log(`  ${chalk.yellow('!')} ${capitalise(provider)}: run ${chalk.dim(`devassemble creds add ${provider} <token>`)}`);
+      const steps = [
+        {
+          provider: 'github',
+          label: 'GitHub',
+          description: 'DevAssemble needs a GitHub Personal Access Token with the `repo` scope.',
+          url: 'https://github.com/settings/tokens/new?scopes=repo&description=DevAssemble',
+          entries: (token: string) => [token],
+        },
+        {
+          provider: 'neon',
+          label: 'Neon',
+          description: 'DevAssemble needs an account-level Neon API key (not project-scoped).',
+          url: 'https://console.neon.tech/app/settings/api-keys',
+          entries: (token: string) => [token],
+        },
+        {
+          provider: 'vercel',
+          label: 'Vercel',
+          description: 'DevAssemble needs a Vercel API token.',
+          url: 'https://vercel.com/account/tokens',
+          entries: (token: string) => [`token=${token}`],
+        },
+      ];
+
+      let stepNumber = 0;
+      for (const step of steps) {
+        stepNumber += 1;
+        console.log(chalk.bold(`Step ${stepNumber}/${steps.length}: ${step.label}`));
+        console.log(`  ${step.description}`);
+
+        // Check existing credential
+        const existingProviders = await cliApp.listCredentials();
+        if (existingProviders.includes(step.provider)) {
+          // Validate existing
+          const validateSpinner = ora(`  Checking existing ${step.label} credential...`).start();
+          try {
+            const discovery = await cliApp.discover(step.provider);
+            if (discovery.connected) {
+              validateSpinner.succeed(`  ${step.label}: existing credential is valid${discovery.accountName ? ` (${discovery.accountName})` : ''}`);
+              const replace = await promptConfirm(`  Replace existing ${step.label} credential?`);
+              if (!replace) {
+                console.log();
+                continue;
+              }
+            } else {
+              validateSpinner.warn(`  ${step.label}: existing credential is invalid`);
+            }
+          } catch {
+            validateSpinner.warn(`  ${step.label}: existing credential could not be validated`);
+          }
         }
+
+        // Open URL
+        console.log(`  ${chalk.dim('→')} ${step.url}`);
+        tryOpenUrl(step.url);
+
+        // Prompt for token
+        const token = await promptSecret(`  Paste your ${step.label === 'Neon' ? 'API key' : 'token'}: `);
+        if (!token) {
+          console.log(chalk.yellow(`  Skipped ${step.label}. You can add it later with "devassemble creds add ${step.provider} <token>".`));
+          console.log();
+          continue;
+        }
+
+        // Store credential
+        await cliApp.addCredential(step.provider, step.entries(token));
+
+        // Validate
+        const spinner = ora('  Validating...').start();
+        try {
+          const discovery = await cliApp.discover(step.provider);
+          if (discovery.connected) {
+            spinner.succeed(`  ${step.label}: valid${discovery.accountName ? ` (${discovery.accountName})` : ''}`);
+          } else {
+            spinner.fail(`  ${step.label}: credential was rejected`);
+            console.log(chalk.yellow(`  You can update it later with "devassemble creds add ${step.provider} <token>".`));
+          }
+        } catch (error) {
+          spinner.fail(`  ${step.label}: validation failed`);
+          printError(error);
+        }
+
+        // Vercel-specific: check GitHub App
+        if (step.provider === 'vercel') {
+          console.log();
+          console.log(chalk.yellow('  Note: The Vercel GitHub App must be installed for repo linking.'));
+          console.log(`  ${chalk.dim('→')} https://github.com/apps/vercel`);
+        }
+
+        console.log();
       }
 
-      console.log();
-      console.log(chalk.dim('You can now run your dev server. Env vars are in .env.local.'));
+      console.log(chalk.green('Setup complete!') + ' Run ' + chalk.cyan('devassemble launch') + ' from any project directory to deploy.');
     });
 
   program
@@ -434,6 +501,86 @@ export function createProgram(): Command {
       }
     });
 
+  program
+    .command('preview')
+    .argument('[branch]', 'Git branch to deploy (defaults to current branch)')
+    .description('Create a preview environment with a database branch and Vercel deployment.')
+    .action(async (branch?: string) => {
+      const cliApp = getApp();
+      const spinner = ora('Creating preview environment...').start();
+      try {
+        const result: PreviewResult = await cliApp.preview(branch);
+        spinner.succeed('Preview environment created');
+        console.log();
+        console.log(chalk.bold('Preview Environment'));
+        console.log(`  Branch:      ${chalk.cyan(result.branchName)}`);
+        if (result.previewUrl) {
+          console.log(`  Preview URL: ${chalk.cyan(result.previewUrl)}`);
+        }
+        if (result.neonBranchId) {
+          console.log(`  Database:    ${chalk.dim('Branch DB connected via Vercel env vars')}`);
+        }
+        console.log();
+        console.log(chalk.dim('Run "devassemble preview-teardown" to clean up.'));
+      } catch (error) {
+        spinner.fail('Preview creation failed');
+        printError(error);
+        process.exitCode = 1;
+      }
+    });
+
+  program
+    .command('preview-teardown')
+    .argument('[branch]', 'Git branch to tear down (defaults to current branch)')
+    .description('Delete the preview environment for a branch.')
+    .action(async (branch?: string) => {
+      const cliApp = getApp();
+      const spinner = ora('Tearing down preview environment...').start();
+      try {
+        const result: PreviewTeardownResult = await cliApp.previewTeardown(branch);
+        spinner.succeed(`Preview for "${result.branchName}" torn down`);
+        if (result.deletedBranch) {
+          console.log(`  ${chalk.green('✓')} Neon database branch deleted`);
+        }
+      } catch (error) {
+        spinner.fail('Preview teardown failed');
+        printError(error);
+        process.exitCode = 1;
+      }
+    });
+
+  const domain = program.command('domain').description('Manage custom domains.');
+  domain
+    .command('add')
+    .argument('<domain>', 'Custom domain to configure (e.g., app.example.com)')
+    .description('Configure a custom domain with Cloudflare DNS and Vercel.')
+    .action(async (domainArg: string) => {
+      const cliApp = getApp();
+      const spinner = ora(`Configuring domain "${domainArg}"...`).start();
+      try {
+        const result: DomainAddResult = await cliApp.domainAdd(domainArg);
+        spinner.succeed(`Domain "${domainArg}" configured`);
+        console.log();
+        if (result.dnsRecordCreated) {
+          console.log(`  ${chalk.green('✓')} DNS record created (CNAME → cname.vercel-dns.com)`);
+        }
+        if (result.vercelDomainAdded) {
+          console.log(`  ${chalk.green('✓')} Domain added to Vercel project`);
+        }
+        if (result.verified) {
+          console.log(`  ${chalk.green('✓')} DNS verified`);
+        } else {
+          console.log(`  ${chalk.yellow('○')} DNS not yet verified — propagation may take a few minutes`);
+        }
+        console.log();
+        console.log(chalk.dim('SSL will be provisioned automatically by Vercel once DNS propagates.'));
+      } catch (error) {
+        spinner.fail('Domain configuration failed');
+        printError(error);
+        process.exitCode = 1;
+      }
+    });
+
   const creds = program.command('creds').description('Manage provider credentials.');
   creds
     .command('add')
@@ -642,6 +789,33 @@ function capitalise(value: string): string {
 function printError(error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
   console.error(chalk.red(message));
+}
+
+function tryOpenUrl(url: string): void {
+  const command = process.platform === 'darwin' ? 'open' : 'xdg-open';
+  import('node:child_process').then(({ execFile }) => {
+    execFile(command, [url], () => {
+      // Silent failure — URL is already printed for manual copy
+    });
+  }).catch(() => {});
+}
+
+async function promptSecret(prompt: string): Promise<string> {
+  if (!process.stdin.isTTY) {
+    return '';
+  }
+
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question(prompt, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
 }
 
 async function promptConfirm(question: string): Promise<boolean> {

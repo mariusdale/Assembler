@@ -195,6 +195,43 @@ export class VercelClient {
     });
   }
 
+  addDomain(
+    projectIdOrName: string,
+    domain: string,
+  ): Promise<{ name: string; verified: boolean; configured: boolean }> {
+    return requestJson<{ name: string; verified: boolean; configured: boolean }>(
+      this.apiUrl(`/v10/projects/${projectIdOrName}/domains`),
+      {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify({ name: domain }),
+      },
+    );
+  }
+
+  listDomains(
+    projectIdOrName: string,
+  ): Promise<{
+    domains: Array<{ name: string; verified: boolean; configured: boolean }>;
+  }> {
+    return requestJson<{
+      domains: Array<{ name: string; verified: boolean; configured: boolean }>;
+    }>(this.apiUrl(`/v10/projects/${projectIdOrName}/domains`), {
+      method: 'GET',
+      headers: this.headers(),
+    });
+  }
+
+  async removeDomain(projectIdOrName: string, domain: string): Promise<void> {
+    await requestJson<Record<string, never>>(
+      this.apiUrl(`/v10/projects/${projectIdOrName}/domains/${domain}`),
+      {
+        method: 'DELETE',
+        headers: this.headers(),
+      },
+    );
+  }
+
   async deleteProject(idOrName: string): Promise<void> {
     await requestJson<Record<string, never>>(this.apiUrl(`/v9/projects/${idOrName}`), {
       method: 'DELETE',

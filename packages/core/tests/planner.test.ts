@@ -135,7 +135,10 @@ describe('planner rule engine', () => {
       domain: 'menugen.app',
     });
 
-    expect(runPlan.tasks.some((task) => task.id === 'cloudflare-add-domain')).toBe(true);
+    expect(runPlan.tasks.some((task) => task.id === 'cloudflare-lookup-zone')).toBe(true);
+    expect(runPlan.tasks.some((task) => task.id === 'cloudflare-create-dns-record')).toBe(true);
+    expect(runPlan.tasks.some((task) => task.id === 'vercel-add-domain')).toBe(true);
+    expect(runPlan.tasks.some((task) => task.id === 'cloudflare-verify-dns')).toBe(true);
     expect(runPlan.tasks.some((task) => task.id === 'resend-verify-sending-domain')).toBe(true);
     expect(runPlan.tasks.some((task) => task.id === 'vercel-sync-postdeploy-env-vars')).toBe(
       true,

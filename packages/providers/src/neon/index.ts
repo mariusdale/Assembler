@@ -12,11 +12,18 @@ import type {
 } from '@devassemble/types';
 
 import { HttpError } from '../shared/http.js';
-import { NeonClient } from './client.js';
+import { NeonClient, type NeonProjectResponse } from './client.js';
 
 export const neonProviderPack: ProviderPack = {
   name: 'neon',
-  actions: ['create-project', 'create-database', 'run-schema-migration', 'capture-database-url'],
+  actions: [
+    'create-project',
+    'create-database',
+    'run-schema-migration',
+    'capture-database-url',
+    'create-preview-branch',
+    'delete-branch',
+  ],
   preflight: async (creds: Credentials): Promise<PreflightResult> => {
     const errors: PreflightResult['errors'] = [];
 
@@ -98,7 +105,33 @@ export const neonProviderPack: ProviderPack = {
         const regionId = asOptionalString(task.params.regionId);
         const projectName =
           asOptionalString(task.params.name) ?? `${toSlug(getProjectName(ctx))}-db`;
-        const project = await client.createProject({
+
+        // Idempotency: check if a project with this name already exists
+        let project: NeonProjectResponse | undefined;
+        try {
+          const existing = await client.listProjects();
+          const match = existing.projects.find((p) => p.name === projectName);
+          if (match) {
+            ctx.log('info', `Neon project "${projectName}" already exists (${match.id}), reusing.`, {
+              provider: 'neon',
+              projectId: match.id,
+            });
+            const branchId = await resolveBranchId(client, match.id);
+            return {
+              success: true,
+              outputs: {
+                projectId: match.id,
+                projectName: match.name,
+                branchId,
+              },
+              message: `Reused existing Neon project "${projectName}".`,
+            };
+          }
+        } catch {
+          // If listing fails, proceed with creation
+        }
+
+        project = await client.createProject({
           name: projectName,
           ...(regionId ? { regionId } : {}),
         });
@@ -155,14 +188,83 @@ export const neonProviderPack: ProviderPack = {
           },
           message: 'Schema migration hook is scaffolded and marked as completed.',
         };
-      case 'capture-database-url':
+      case 'capture-database-url': {
+        const databaseUrl = ctx.getOutput('neon-create-project', 'databaseUrl');
+        if (!databaseUrl || typeof databaseUrl !== 'string' || databaseUrl.trim() === '') {
+          throw new Error(
+            'Neon project was created but no connection URI was returned. ' +
+            'This can happen when the Neon project is still initializing. ' +
+            'Try running "devassemble resume" in a few seconds.',
+          );
+        }
+        return {
+          success: true,
+          outputs: { databaseUrl },
+          message: 'Captured database URL from Neon project provisioning outputs.',
+        };
+      }
+      case 'create-preview-branch': {
+        const projectId = asString(task.params.projectId, 'task.params.projectId');
+        const branchName = asString(task.params.branchName, 'task.params.branchName');
+        await waitForProjectReady(client, projectId, ctx);
+
+        // Idempotency: check if branch already exists
+        const existingBranches = await client.listBranches(projectId);
+        const existingBranch = existingBranches.branches.find((b) => b.name === branchName);
+        if (existingBranch) {
+          ctx.log('info', `Neon branch "${branchName}" already exists (${existingBranch.id}).`, {
+            provider: 'neon',
+            branchId: existingBranch.id,
+          });
+
+          return {
+            success: true,
+            outputs: {
+              branchId: existingBranch.id,
+              branchName: existingBranch.name,
+              projectId,
+            },
+            message: `Branch "${branchName}" already exists.`,
+          };
+        }
+
+        const result = await client.createBranch(projectId, branchName);
+        const branchDatabaseUrl = result.connection_uris?.[0]?.connection_uri;
+
+        ctx.log('info', `Created Neon branch "${result.branch.name}" (${result.branch.id}).`, {
+          provider: 'neon',
+          branchId: result.branch.id,
+          projectId,
+        });
+
         return {
           success: true,
           outputs: {
-            databaseUrl: ctx.getOutput('neon-create-project', 'databaseUrl'),
+            branchId: result.branch.id,
+            branchName: result.branch.name,
+            projectId,
+            ...(branchDatabaseUrl ? { databaseUrl: branchDatabaseUrl } : {}),
           },
-          message: 'Captured database URL from Neon project provisioning outputs.',
+          message: `Created Neon branch "${result.branch.name}" from production.`,
         };
+      }
+      case 'delete-branch': {
+        const projectId = asString(task.params.projectId, 'task.params.projectId');
+        const branchId = asString(task.params.branchId, 'task.params.branchId');
+        await client.deleteBranch(projectId, branchId);
+
+        ctx.log('info', `Deleted Neon branch "${branchId}".`, {
+          provider: 'neon',
+          branchId,
+          projectId,
+        });
+
+        return {
+          success: true,
+          outputs: {},
+          message: `Deleted Neon branch "${branchId}".`,
+        };
+      }
       default:
         throw new Error(`Unsupported neon action "${task.action}".`);
     }
@@ -171,6 +273,20 @@ export const neonProviderPack: ProviderPack = {
     success: true,
   }),
   rollback: async (task: Task, ctx: ExecutionContext): Promise<RollbackResult> => {
+    if (task.action === 'create-preview-branch') {
+      const projectId = asOptionalString(task.outputs.projectId);
+      const branchId = asOptionalString(task.outputs.branchId);
+      if (projectId && branchId) {
+        const client = new NeonClient(await ctx.getCredential('neon'));
+        try {
+          await client.deleteBranch(projectId, branchId);
+        } catch {
+          // Branch may already be deleted
+        }
+      }
+      return { success: true };
+    }
+
     if (task.action !== 'create-project') {
       return {
         success: true,
@@ -179,7 +295,13 @@ export const neonProviderPack: ProviderPack = {
 
     const projectId = asString(task.outputs.projectId, 'task.outputs.projectId');
     const client = new NeonClient(await ctx.getCredential('neon'));
-    await client.deleteProject(projectId);
+    try {
+      await client.deleteProject(projectId);
+    } catch (error) {
+      if (!(error instanceof HttpError) || error.status !== 404) {
+        throw error;
+      }
+    }
 
     return {
       success: true,

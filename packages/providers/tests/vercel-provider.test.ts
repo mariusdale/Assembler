@@ -74,6 +74,10 @@ describe('vercel provider pack', () => {
           );
         }
 
+        if (url.includes('/v9/projects/menugen') && init?.method === 'GET') {
+          return Promise.resolve(new Response('{"error":"not_found"}', { status: 404 }));
+        }
+
         if (url.includes('/v9/projects/prj_123') && init?.method === 'GET') {
           return Promise.resolve(
             new Response(

@@ -157,6 +157,18 @@ function createTaskSeedsFromProjectScan(projectScan: ProjectScan): PlannerTaskSe
     );
   }
 
+  if (requiresProvider(projectScan, 'clerk')) {
+    seeds.push(
+      taskSeed(
+        'clerk-capture-keys',
+        'Capture Clerk API keys',
+        'clerk',
+        'capture-keys',
+        [repoTaskId],
+      ),
+    );
+  }
+
   if (projectScan.framework === 'nextjs') {
     const predeployDependencies = ['github-push-code'];
     if (requiresProvider(projectScan, 'neon')) {
@@ -164,6 +176,9 @@ function createTaskSeedsFromProjectScan(projectScan: ProjectScan): PlannerTaskSe
     }
     if (requiresProvider(projectScan, 'stripe')) {
       predeployDependencies.push('stripe-capture-keys');
+    }
+    if (requiresProvider(projectScan, 'clerk')) {
+      predeployDependencies.push('clerk-capture-keys');
     }
 
     seeds.push(
@@ -357,35 +372,11 @@ function createTaskSeeds(appSpec: AppSpec): PlannerTaskSeed[] {
       ['neon-run-schema-migration'],
     ),
     taskSeed(
-      'clerk-create-application',
-      'Create Clerk application',
+      'clerk-capture-keys',
+      'Capture Clerk API keys',
       'clerk',
-      'create-application',
+      'capture-keys',
       ['github-create-repo'],
-    ),
-    taskSeed(
-      'clerk-configure-auth',
-      'Configure Clerk authentication',
-      'clerk',
-      'configure-auth',
-      ['clerk-create-application'],
-      {
-        strategy: appSpec.auth.strategy,
-      },
-    ),
-    taskSeed(
-      'clerk-capture-secret-key',
-      'Capture Clerk secret key',
-      'clerk',
-      'capture-secret-key',
-      ['clerk-configure-auth'],
-    ),
-    taskSeed(
-      'clerk-capture-publishable-key',
-      'Capture Clerk publishable key',
-      'clerk',
-      'capture-publishable-key',
-      ['clerk-configure-auth'],
     ),
     taskSeed(
       'sentry-create-project',
@@ -458,8 +449,7 @@ function createTaskSeeds(appSpec: AppSpec): PlannerTaskSeed[] {
 
   const predeployEnvDependencies = [
     'neon-capture-database-url',
-    'clerk-capture-secret-key',
-    'clerk-capture-publishable-key',
+    'clerk-capture-keys',
     'sentry-capture-dsn',
     'posthog-capture-api-key',
   ];
@@ -510,23 +500,23 @@ function createTaskSeeds(appSpec: AppSpec): PlannerTaskSeed[] {
   if (appSpec.domain) {
     seeds.push(
       taskSeed(
-        'cloudflare-add-domain',
-        'Add custom domain to Cloudflare',
+        'cloudflare-lookup-zone',
+        'Look up Cloudflare DNS zone',
         'cloudflare',
-        'add-domain',
+        'lookup-zone',
         ['vercel-deploy-preview'],
         {
           domain: appSpec.domain,
         },
-        'high',
+        'medium',
         true,
       ),
       taskSeed(
-        'cloudflare-create-dns-records',
-        'Create Cloudflare DNS records',
+        'cloudflare-create-dns-record',
+        'Create Cloudflare DNS record',
         'cloudflare',
-        'create-dns-records',
-        ['cloudflare-add-domain'],
+        'create-dns-record',
+        ['cloudflare-lookup-zone'],
         {
           domain: appSpec.domain,
         },
@@ -534,11 +524,23 @@ function createTaskSeeds(appSpec: AppSpec): PlannerTaskSeed[] {
         true,
       ),
       taskSeed(
-        'cloudflare-verify-propagation',
-        'Verify DNS propagation',
+        'vercel-add-domain',
+        'Add domain to Vercel project',
+        'vercel',
+        'add-domain',
+        ['cloudflare-create-dns-record', 'vercel-deploy-preview'],
+        {
+          domain: appSpec.domain,
+        },
+        'high',
+        true,
+      ),
+      taskSeed(
+        'cloudflare-verify-dns',
+        'Verify DNS configuration',
         'cloudflare',
-        'verify-propagation',
-        ['cloudflare-create-dns-records'],
+        'verify-dns',
+        ['vercel-add-domain'],
         {
           domain: appSpec.domain,
         },
@@ -550,7 +552,7 @@ function createTaskSeeds(appSpec: AppSpec): PlannerTaskSeed[] {
         'Verify Resend sending domain',
         'resend',
         'verify-sending-domain',
-        ['cloudflare-verify-propagation'],
+        ['cloudflare-verify-dns'],
         {
           domain: appSpec.domain,
         },

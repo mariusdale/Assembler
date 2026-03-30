@@ -164,15 +164,31 @@ export const githubProviderPack: ProviderPack = {
             provider: 'github',
             repoName,
           });
-          const response = await client.createOrUpdateFile({
-            owner,
-            repo: repoName,
-            path: file.path,
-            content: file.content,
-            message: `Sync ${file.path}`,
-            branch,
-          });
-          lastCommitSha = response.commit.sha;
+          try {
+            const response = await client.createOrUpdateFile({
+              owner,
+              repo: repoName,
+              path: file.path,
+              content: file.content,
+              message: `Sync ${file.path}`,
+              branch,
+            });
+            lastCommitSha = response.commit.sha;
+          } catch (error) {
+            if (error instanceof HttpError && error.status === 404) {
+              throw new Error(
+                `Failed to push file "${file.path}" to ${owner}/${repoName}: repository not found or not yet initialized. ` +
+                `The repo may still be initializing — try running "devassemble resume" in a few seconds.`,
+              );
+            }
+            if (error instanceof HttpError && error.status === 403) {
+              throw new Error(
+                `Failed to push file "${file.path}" to ${owner}/${repoName}: permission denied. ` +
+                `Ensure your GitHub token has the "repo" scope. Generate a new token at https://github.com/settings/tokens`,
+              );
+            }
+            throw error;
+          }
         }
 
         return {
@@ -271,7 +287,13 @@ export const githubProviderPack: ProviderPack = {
     const owner = asString(task.outputs.owner, 'task.outputs.owner');
     const repoName = asString(task.outputs.repoName, 'task.outputs.repoName');
     const client = new GitHubClient(await ctx.getCredential('github'));
-    await client.deleteRepository(owner, repoName);
+    try {
+      await client.deleteRepository(owner, repoName);
+    } catch (error) {
+      if (!(error instanceof HttpError) || error.status !== 404) {
+        throw error;
+      }
+    }
 
     return {
       success: true,
@@ -344,7 +366,10 @@ function parseGitHubRemoteUrl(remoteUrl: string): { owner: string; repo: string 
     };
   }
 
-  throw new Error(`Unsupported GitHub remote URL "${remoteUrl}".`);
+  throw new Error(
+    `Unsupported GitHub remote URL format: "${remoteUrl}". ` +
+    `Expected https://github.com/<owner>/<repo>.git or git@github.com:<owner>/<repo>.git`,
+  );
 }
 
 async function createOrReuseRepository(

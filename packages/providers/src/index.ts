@@ -1,12 +1,12 @@
 import type { ProviderPack } from '@devassemble/types';
 
+import { clerkProviderPack } from './clerk/index.js';
+import { cloudflareProviderPack } from './cloudflare/index.js';
 import { githubProviderPack } from './github/index.js';
 import { neonProviderPack } from './neon/index.js';
 import { stripeProviderPack } from './stripe/index.js';
 import { vercelProviderPack } from './vercel/index.js';
 import {
-  clerkProviderPack,
-  cloudflareProviderPack,
   placeholderProviderPacks,
   posthogProviderPack,
   resendProviderPack,
@@ -29,6 +29,8 @@ export type PlannedProvider = (typeof plannedProviders)[number];
 
 export function createProviderRegistry(): Record<string, ProviderPack> {
   return {
+    clerk: clerkProviderPack,
+    cloudflare: cloudflareProviderPack,
     github: githubProviderPack,
     neon: neonProviderPack,
     stripe: stripeProviderPack,
@@ -50,3 +52,7 @@ export {
   stripeProviderPack,
   vercelProviderPack,
 };
+
+export { ClerkClient } from './clerk/client.js';
+export { CloudflareClient } from './cloudflare/client.js';
+export { NeonClient } from './neon/client.js';

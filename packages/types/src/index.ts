@@ -199,6 +199,19 @@ export interface ExecutionContext {
   emitEvent(event: RunEvent): void;
 }
 
+export interface PreviewRecord {
+  id: string;
+  parentRunId: string;
+  branchName: string;
+  previewRunId: string;
+  neonBranchId?: string | undefined;
+  neonProjectId?: string | undefined;
+  vercelDeploymentId?: string | undefined;
+  previewUrl?: string | undefined;
+  createdAt: string;
+  status: 'active' | 'torn_down';
+}
+
 export interface ProviderPack {
   name: string;
   actions: string[];

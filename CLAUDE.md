@@ -4,10 +4,10 @@ DevAssemble is a CLI tool that provisions infrastructure and deploys existing pr
 It does NOT generate code. Users build their app, then run `devassemble launch` from
 their project directory to go live without touching any provider dashboards.
 
-## Current milestone: Preview environments (Milestone 9)
+## Current milestone: Post-deploy health check (Milestone 12)
 
-Milestones 1-8 are complete. The CLI has launch, setup, plan, teardown, and env sync.
-Milestone 9 adds `devassemble preview` for per-branch isolated environments.
+Milestones 1-11 are complete. The CLI has launch, setup, plan, teardown, env sync,
+preview environments, custom domains, and six live providers.
 
 ## Architecture
 
@@ -15,7 +15,7 @@ Milestone 9 adds `devassemble preview` for per-branch isolated environments.
 apps/cli/          CLI entry point (commander, ora, chalk)
 packages/types/    Shared type contracts (ProjectScan, RunPlan, Task, ProviderPack, etc.)
 packages/core/     Planner (rule engine, project scanner) and executor (DAG runtime, state store)
-packages/providers/ Provider implementations (github, neon, stripe, vercel) + placeholders
+packages/providers/ Provider implementations (github, neon, stripe, vercel, clerk, cloudflare) + placeholders
 apps/web/          Placeholder — no web dashboard in scope
 ```
 
@@ -27,6 +27,9 @@ apps/web/          Placeholder — no web dashboard in scope
 - `devassemble env pull [runId]` — pull env vars from Vercel into `.env.local`
 - `devassemble env push [runId]` — push local `.env.local`/`.env` to Vercel
 - `devassemble setup` — onboard new team member (find Vercel project, pull env vars)
+- `devassemble preview [branch]` — create per-branch preview env (Neon branch + Vercel deploy)
+- `devassemble preview-teardown [branch]` — tear down preview environment
+- `devassemble domain add <domain>` — configure custom domain (Cloudflare DNS + Vercel)
 - `devassemble init <prompt>` — old LLM/heuristic path (AppSpec-based, not used by launch)
 - `devassemble execute` / `resume` / `rollback` — operate on stored run plans
 
@@ -37,12 +40,13 @@ apps/web/          Placeholder — no web dashboard in scope
 - **Every error needs a remediation hint.** Never surface raw HTTP errors.
 - **Idempotent provider actions.** If a resource already exists, detect and continue.
 - **Checkpoint after every task.** SQLite state store updates after every status change.
-- Four live providers: GitHub, Neon, Stripe, Vercel. Others remain placeholders.
+- Six live providers: GitHub, Neon, Stripe, Vercel, Clerk, Cloudflare. Others (Resend, Sentry, PostHog) remain placeholders.
 
 ## Provider credentials
 
 Stored locally in `.devassemble/state.db`. Added via `devassemble creds add <provider> <token>`.
 Vercel supports structured entries: `devassemble creds add vercel token=<tok> teamId=<id>`.
+Clerk supports structured entries: `devassemble creds add clerk token=<secret-key> publishableKey=<pk_...>`.
 
 ## Known design decisions
 
@@ -57,6 +61,30 @@ Vercel supports structured entries: `devassemble creds add vercel token=<tok> te
 - The scan path generates a single `stripe-capture-keys` task (no product/price/webhook creation — that's user business logic).
 - `capture-keys` validates the secret key against `/v1/account`, detects test vs live mode, and outputs `secretKey` + `mode`.
 - Vercel env var sync picks up `STRIPE_SECRET_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` from the capture task outputs.
+
+## Clerk provider design
+
+- Clerk is detected when the scanner finds `@clerk/nextjs` in package.json or `CLERK_*` env vars.
+- The scan path generates a single `clerk-capture-keys` task (same pattern as Stripe).
+- `capture-keys` validates the secret key against `GET /v1/instances`, outputs `secretKey` + `publishableKey` + `mode`.
+- Vercel env var sync picks up `CLERK_SECRET_KEY` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`.
+
+## Cloudflare provider design
+
+- Cloudflare is used for custom domain DNS management via `devassemble domain add`.
+- Actions: `lookup-zone` (find zone by domain), `create-dns-record` (CNAME → `cname.vercel-dns.com`), `verify-dns`.
+- `domain add` is a standalone post-launch command that builds a mini task DAG and executes it.
+- Vercel `add-domain` action registers the domain on the Vercel project; SSL is auto-provisioned.
+
+## Preview environments design
+
+- `devassemble preview [branch]` creates an isolated environment per git branch.
+- Creates a Neon branch (instant copy-on-write from production) with its own connection URI.
+- Sets a preview-scoped `DATABASE_URL` env var on the Vercel project.
+- Triggers a Vercel preview deployment for the branch.
+- Preview records are stored in `previews` table in the SQLite state store.
+- `devassemble preview-teardown [branch]` deletes the Neon branch and marks the preview as torn down.
+- If the production run has no Neon, the preview skips database branching and just deploys.
 
 ## Testing a live run
 

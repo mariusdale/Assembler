@@ -23,6 +23,9 @@ export const vercelProviderPack: ProviderPack = {
     'deploy-preview',
     'wait-for-ready',
     'sync-postdeploy-env-vars',
+    'add-domain',
+    'set-preview-env-var',
+    'deploy-branch-preview',
   ],
   preflight: async (creds: Credentials): Promise<PreflightResult> => {
     const errors: PreflightResult['errors'] = [];
@@ -117,6 +120,30 @@ export const vercelProviderPack: ProviderPack = {
       case 'create-project': {
         const projectName = asOptionalString(task.params.name) ?? toSlug(getProjectName(ctx));
         const framework = asOptionalString(task.params.framework) ?? 'nextjs';
+
+        // Idempotency: check if project already exists
+        try {
+          const existing = await client.getProject(projectName);
+          if (existing) {
+            ctx.log('info', `Vercel project "${projectName}" already exists (${existing.id}), reusing.`, {
+              provider: 'vercel',
+              projectId: existing.id,
+            });
+            return {
+              success: true,
+              outputs: {
+                projectId: existing.id,
+                projectName: existing.name,
+              },
+              message: `Reused existing Vercel project "${projectName}".`,
+            };
+          }
+        } catch (error) {
+          if (!(error instanceof HttpError) || error.status !== 404) {
+            throw error;
+          }
+        }
+
         const project = await client.createProject({
           name: projectName,
           framework,
@@ -258,15 +285,128 @@ export const vercelProviderPack: ProviderPack = {
           }
 
           if (!['QUEUED', 'BUILDING', 'INITIALIZING'].includes(readyState)) {
-            throw new Error(`Vercel deployment ${deploymentId} ended in state ${readyState}.`);
+            const inspectorUrl = deployment.inspectorUrl ? ` View build logs: ${deployment.inspectorUrl}` : '';
+            throw new Error(
+              `Vercel deployment ${deploymentId} ended in state "${readyState}" instead of "READY".${inspectorUrl} ` +
+              `Check the Vercel dashboard for build errors: https://vercel.com`,
+            );
           }
 
           if (Date.now() - startedAt >= timeoutMs) {
-            throw new Error(`Timed out waiting for Vercel deployment ${deploymentId} to become ready.`);
+            const inspectorUrl = deployment.inspectorUrl ? ` View build logs: ${deployment.inspectorUrl}` : '';
+            throw new Error(
+              `Timed out waiting for Vercel deployment ${deploymentId} to become ready (last state: "${readyState}").${inspectorUrl} ` +
+              `The deployment may still be building — try running "devassemble resume" in a minute.`,
+            );
           }
 
           await sleep(pollIntervalMs);
         }
+      }
+      case 'set-preview-env-var': {
+        const projectId = asString(
+          task.params.projectId ?? getOptionalProjectId(ctx),
+          'task.params.projectId',
+        );
+        const key = asString(task.params.key, 'task.params.key');
+        const value = asString(task.params.value, 'task.params.value');
+
+        await client.createProjectEnv(projectId, {
+          key,
+          value,
+          target: ['preview'],
+          type: 'encrypted',
+        });
+
+        ctx.log('info', `Set preview env var "${key}" on Vercel project.`, {
+          provider: 'vercel',
+          key,
+        });
+
+        return {
+          success: true,
+          outputs: { key, synced: true, projectId },
+          message: `Set preview env var "${key}".`,
+        };
+      }
+      case 'deploy-branch-preview': {
+        const projectName = asString(task.params.projectName, 'task.params.projectName');
+        const projectId = asString(task.params.projectId, 'task.params.projectId');
+        const repoId = task.params.repoId;
+        const ref = asString(task.params.ref, 'task.params.ref');
+        const sha = asString(task.params.sha, 'task.params.sha');
+
+        const deployment = await client.createDeployment({
+          name: projectName,
+          project: projectId,
+          repoId: String(repoId),
+          ref,
+          sha,
+          target: 'preview',
+        });
+
+        ctx.log('info', `Triggered preview deployment for branch "${ref}".`, {
+          provider: 'vercel',
+          deploymentId: deployment.id,
+        });
+
+        return {
+          success: true,
+          outputs: {
+            deploymentId: deployment.id,
+            previewUrl: `https://${deployment.url}`,
+            readyState: deployment.readyState ?? 'QUEUED',
+            projectId,
+          },
+          message: `Triggered preview deployment for branch "${ref}".`,
+        };
+      }
+      case 'add-domain': {
+        const projectId = asString(
+          task.params.projectId ?? getOptionalProjectId(ctx),
+          'vercel-create-project.projectId',
+        );
+        const domain = asString(task.params.domain, 'task.params.domain');
+
+        // Idempotency: check if domain already added
+        const existing = await client.listDomains(projectId);
+        const found = existing.domains.find((d) => d.name === domain);
+        if (found) {
+          ctx.log('info', `Domain "${domain}" already added to Vercel project.`, {
+            provider: 'vercel',
+            domain: found.name,
+          });
+
+          return {
+            success: true,
+            outputs: {
+              domain: found.name,
+              verified: found.verified,
+              configured: found.configured,
+              projectId,
+            },
+            message: `Domain "${domain}" already exists on the Vercel project.`,
+          };
+        }
+
+        const result = await client.addDomain(projectId, domain);
+
+        ctx.log('info', `Added domain "${result.name}" to Vercel project.`, {
+          provider: 'vercel',
+          domain: result.name,
+          verified: result.verified,
+        });
+
+        return {
+          success: true,
+          outputs: {
+            domain: result.name,
+            verified: result.verified,
+            configured: result.configured,
+            projectId,
+          },
+          message: `Added domain "${result.name}" to Vercel project.`,
+        };
       }
       default:
         throw new Error(`Unsupported vercel action "${task.action}".`);
@@ -321,6 +461,25 @@ export const vercelProviderPack: ProviderPack = {
     };
   },
   rollback: async (task: Task, ctx: ExecutionContext): Promise<RollbackResult> => {
+    if (task.action === 'add-domain') {
+      const domain = asOptionalString(task.outputs.domain);
+      const projectId =
+        asOptionalString(task.outputs.projectId) ?? asOptionalString(getOptionalProjectId(ctx));
+
+      if (domain && projectId) {
+        const client = new VercelClient(await ctx.getCredential('vercel'));
+        try {
+          await client.removeDomain(projectId, domain);
+        } catch (error) {
+          if (!(error instanceof HttpError) || error.status !== 404) {
+            throw error;
+          }
+        }
+      }
+
+      return { success: true };
+    }
+
     if (task.action !== 'create-project' && task.action !== 'link-repository') {
       return {
         success: true,
@@ -383,13 +542,15 @@ function collectEnvVars(
     // Outputs produced by the scan-based path (neon)
     push('DATABASE_URL', ctx.getOutput('neon-capture-database-url', 'databaseUrl'), allTargets);
 
-    // Outputs produced by the old AppSpec-based path (kept for backwards compatibility)
-    push('CLERK_SECRET_KEY', ctx.getOutput('clerk-capture-secret-key', 'secretKey'), allTargets);
-    push(
-      'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
+    // Clerk keys (scan-based path uses clerk-capture-keys, old AppSpec path used separate tasks)
+    push('CLERK_SECRET_KEY',
+      ctx.getOutput('clerk-capture-keys', 'secretKey') ??
+      ctx.getOutput('clerk-capture-secret-key', 'secretKey'),
+      allTargets);
+    push('NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
+      ctx.getOutput('clerk-capture-keys', 'publishableKey') ??
       ctx.getOutput('clerk-capture-publishable-key', 'publishableKey'),
-      allTargets,
-    );
+      allTargets);
     push('SENTRY_DSN', ctx.getOutput('sentry-capture-dsn', 'dsn'), allTargets);
     push('POSTHOG_API_KEY', ctx.getOutput('posthog-capture-api-key', 'apiKey'), allTargets);
     push('STRIPE_SECRET_KEY',
@@ -514,7 +675,16 @@ async function createOrResolveLinkedProject(
     return existingProject;
   }
 
+  if (existingProject?.link?.repo) {
+    throw new Error(
+      `Vercel project "${input.projectName}" is already linked to repository "${existingProject.link.repo}", ` +
+      `but DevAssemble expected it to link to "${input.repoFullName}". ` +
+      `Either delete the existing Vercel project at https://vercel.com or use a different project name.`,
+    );
+  }
+
   if (existingProject) {
+    // Project exists but has no repo link — safe to delete and recreate with link
     await client.deleteProject(input.projectId);
   }
 

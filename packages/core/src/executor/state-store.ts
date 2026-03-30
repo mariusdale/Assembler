@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import type { RunEvent, RunPlan, Task } from '@devassemble/types';
+import type { PreviewRecord, RunEvent, RunPlan, Task } from '@devassemble/types';
 
 import type { CredentialRecord, RunStateStore, SerializedRunPlan } from './types.js';
 
@@ -39,6 +39,19 @@ export class SqliteRunStateStore implements RunStateStore {
         provider TEXT PRIMARY KEY,
         reference TEXT NOT NULL,
         metadata_json TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS previews (
+        id TEXT PRIMARY KEY,
+        parent_run_id TEXT NOT NULL,
+        branch_name TEXT NOT NULL,
+        preview_run_id TEXT NOT NULL,
+        neon_branch_id TEXT,
+        neon_project_id TEXT,
+        vercel_deployment_id TEXT,
+        preview_url TEXT,
+        created_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active'
       );
     `);
   }
@@ -184,9 +197,90 @@ export class SqliteRunStateStore implements RunStateStore {
     }));
   }
 
+  savePreview(preview: PreviewRecord): void {
+    this.database
+      .prepare(
+        `
+          INSERT INTO previews (id, parent_run_id, branch_name, preview_run_id, neon_branch_id, neon_project_id, vercel_deployment_id, preview_url, created_at, status)
+          VALUES (@id, @parent_run_id, @branch_name, @preview_run_id, @neon_branch_id, @neon_project_id, @vercel_deployment_id, @preview_url, @created_at, @status)
+          ON CONFLICT(id) DO UPDATE SET
+            neon_branch_id = excluded.neon_branch_id,
+            neon_project_id = excluded.neon_project_id,
+            vercel_deployment_id = excluded.vercel_deployment_id,
+            preview_url = excluded.preview_url,
+            status = excluded.status
+        `,
+      )
+      .run({
+        id: preview.id,
+        parent_run_id: preview.parentRunId,
+        branch_name: preview.branchName,
+        preview_run_id: preview.previewRunId,
+        neon_branch_id: preview.neonBranchId ?? null,
+        neon_project_id: preview.neonProjectId ?? null,
+        vercel_deployment_id: preview.vercelDeploymentId ?? null,
+        preview_url: preview.previewUrl ?? null,
+        created_at: preview.createdAt,
+        status: preview.status,
+      });
+  }
+
+  loadPreview(branchName: string): PreviewRecord | undefined {
+    const row = this.database
+      .prepare('SELECT * FROM previews WHERE branch_name = ? AND status = ? ORDER BY created_at DESC LIMIT 1')
+      .get(branchName, 'active') as PreviewRow | undefined;
+
+    return row ? toPreviewRecord(row) : undefined;
+  }
+
+  listPreviews(parentRunId?: string): PreviewRecord[] {
+    const query = parentRunId
+      ? 'SELECT * FROM previews WHERE parent_run_id = ? ORDER BY created_at DESC'
+      : 'SELECT * FROM previews ORDER BY created_at DESC';
+    const rows = (parentRunId
+      ? this.database.prepare(query).all(parentRunId)
+      : this.database.prepare(query).all()) as PreviewRow[];
+
+    return rows.map(toPreviewRecord);
+  }
+
+  updatePreviewStatus(id: string, status: 'active' | 'torn_down'): void {
+    this.database
+      .prepare('UPDATE previews SET status = ? WHERE id = ?')
+      .run(status, id);
+  }
+
   close(): void {
     this.database.close();
   }
+}
+
+interface PreviewRow {
+  id: string;
+  parent_run_id: string;
+  branch_name: string;
+  preview_run_id: string;
+  neon_branch_id: string | null;
+  neon_project_id: string | null;
+  vercel_deployment_id: string | null;
+  preview_url: string | null;
+  created_at: string;
+  status: string;
+}
+
+function toPreviewRecord(row: PreviewRow): PreviewRecord {
+  return {
+    id: row.id,
+    parentRunId: row.parent_run_id,
+    branchName: row.branch_name,
+    previewRunId: row.preview_run_id,
+    neonBranchId: row.neon_branch_id ?? undefined,
+    neonProjectId: row.neon_project_id ?? undefined,
+    vercelDeploymentId: row.vercel_deployment_id ?? undefined,
+    previewUrl: row.preview_url ?? undefined,
+    createdAt: row.created_at,
+    status: row.status as 'active' | 'torn_down',
+  };
 }
 
 function toRunRow(runPlan: RunPlan): Record<string, string> {

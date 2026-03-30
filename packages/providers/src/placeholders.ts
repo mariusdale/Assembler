@@ -2,34 +2,6 @@ import type { ProviderPack } from '@devassemble/types';
 
 import { createPlaceholderProviderPack } from './shared/placeholder.js';
 
-export const clerkProviderPack = createPlaceholderProviderPack({
-  name: 'clerk',
-  actions: ['create-application', 'configure-auth', 'capture-secret-key', 'capture-publishable-key'],
-  createOutputs: (action, { task }) => {
-    const appName =
-      typeof task.params.appName === 'string' && task.params.appName.trim() !== ''
-        ? task.params.appName
-        : task.id;
-
-    switch (action) {
-      case 'create-application':
-        return {
-          applicationId: `${appName}-clerk-app`,
-        };
-      case 'capture-secret-key':
-        return {
-          secretKey: 'clerk_test_placeholder_secret_key',
-        };
-      case 'capture-publishable-key':
-        return {
-          publishableKey: 'pk_test_placeholder_clerk_publishable_key',
-        };
-      default:
-        return {};
-    }
-  },
-});
-
 export const resendProviderPack = createPlaceholderProviderPack({
   name: 'resend',
   actions: ['verify-sending-domain', 'create-api-key', 'capture-api-key'],
@@ -84,15 +56,8 @@ export const posthogProviderPack = createPlaceholderProviderPack({
   },
 });
 
-export const cloudflareProviderPack = createPlaceholderProviderPack({
-  name: 'cloudflare',
-  actions: ['add-domain', 'create-dns-records', 'verify-propagation'],
-});
-
 export const placeholderProviderPacks: Record<string, ProviderPack> = {
-  clerk: clerkProviderPack,
   resend: resendProviderPack,
   sentry: sentryProviderPack,
   posthog: posthogProviderPack,
-  cloudflare: cloudflareProviderPack,
 };
