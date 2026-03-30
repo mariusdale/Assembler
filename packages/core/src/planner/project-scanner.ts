@@ -1,5 +1,5 @@
 import { access, readFile, readdir } from 'node:fs/promises';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -364,21 +364,36 @@ async function checkLockfileSync(
 ): Promise<LockfileCheck> {
   const manifestDeps = getManifestDependencyNames(packageJson);
 
-  for (const [filename, manager] of Object.entries(LOCKFILE_TO_MANAGER)) {
-    const lockfilePath = join(directory, filename);
-    let raw: string;
-    try {
-      raw = await readFile(lockfilePath, 'utf8');
-    } catch {
-      continue;
+  // Walk up from the project directory to the filesystem root to find the
+  // nearest lockfile — monorepos keep the lockfile at the workspace root,
+  // not inside individual packages.
+  let current = resolve(directory);
+  while (true) {
+    for (const [filename, manager] of Object.entries(LOCKFILE_TO_MANAGER)) {
+      const lockfilePath = join(current, filename);
+      let raw: string;
+      try {
+        raw = await readFile(lockfilePath, 'utf8');
+      } catch {
+        continue;
+      }
+
+      // For monorepos the lockfile lives above the project directory.
+      // Compute the relative path so parsers can locate the right importer entry.
+      const importerKey = current === resolve(directory) ? '.' : relative(current, resolve(directory));
+      const lockfileDeps = extractLockfileDependencyNames(raw, manager, importerKey);
+      const missingFromLockfile = [...manifestDeps].filter((dep) => !lockfileDeps.has(dep));
+      const extraInLockfile = [...lockfileDeps].filter((dep) => !manifestDeps.has(dep));
+      const inSync = missingFromLockfile.length === 0 && extraInLockfile.length === 0;
+
+      return { packageManager: manager, lockfileExists: true, inSync, missingFromLockfile, extraInLockfile };
     }
 
-    const lockfileDeps = extractLockfileDependencyNames(raw, manager);
-    const missingFromLockfile = [...manifestDeps].filter((dep) => !lockfileDeps.has(dep));
-    const extraInLockfile = [...lockfileDeps].filter((dep) => !manifestDeps.has(dep));
-    const inSync = missingFromLockfile.length === 0 && extraInLockfile.length === 0;
-
-    return { packageManager: manager, lockfileExists: true, inSync, missingFromLockfile, extraInLockfile };
+    const parent = dirname(current);
+    if (parent === current) {
+      break; // reached filesystem root
+    }
+    current = parent;
   }
 
   return {
@@ -403,10 +418,10 @@ function getManifestDependencyNames(packageJson: Record<string, unknown>): Set<s
   return names;
 }
 
-function extractLockfileDependencyNames(raw: string, manager: PackageManager): Set<string> {
+function extractLockfileDependencyNames(raw: string, manager: PackageManager, importerKey: string): Set<string> {
   switch (manager) {
     case 'pnpm':
-      return extractPnpmDeps(raw);
+      return extractPnpmDeps(raw, importerKey);
     case 'npm':
       return extractNpmDeps(raw);
     case 'yarn':
@@ -414,45 +429,51 @@ function extractLockfileDependencyNames(raw: string, manager: PackageManager): S
   }
 }
 
-function extractPnpmDeps(raw: string): Set<string> {
-  // pnpm-lock.yaml v6+ has an importers section with '.' as the root.
-  // We look for dependency names under importers['.'].dependencies and devDependencies.
-  // Lines like:   '  package-name:' under the right section.
+function extractPnpmDeps(raw: string, importerKey: string): Set<string> {
+  // pnpm-lock.yaml v6+ has an importers section keyed by relative path.
+  // Root packages use '.', monorepo sub-packages use paths like 'apps/my-app'.
   const deps = new Set<string>();
   const lines = raw.split(/\r?\n/);
-  let inRootImporter = false;
+  let inImporters = false;
+  let inTargetImporter = false;
   let inDepsSection = false;
 
+  // Build a pattern that matches the importer key with or without quotes
+  const escapedKey = importerKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const importerPattern = new RegExp(`^\\s{2}'?${escapedKey}['"]?:`);
+
   for (const line of lines) {
-    // Match importers: → '.': block
     if (/^importers:/.test(line)) {
-      inRootImporter = false;
+      inImporters = true;
+      inTargetImporter = false;
       inDepsSection = false;
       continue;
     }
-    if (inRootImporter === false && /^\s{2}'?\.['"]?:/.test(line)) {
-      inRootImporter = true;
+    // Detect start of a new top-level section (not indented) → leave importers
+    if (inImporters && /^\S/.test(line) && line.trim() !== '' && !/^importers:/.test(line)) {
+      inImporters = false;
+      inTargetImporter = false;
       inDepsSection = false;
       continue;
     }
-    if (inRootImporter && /^\s{4}(?:dependencies|devDependencies|optionalDependencies):/.test(line)) {
+    if (inImporters && !inTargetImporter && importerPattern.test(line)) {
+      inTargetImporter = true;
+      inDepsSection = false;
+      continue;
+    }
+    // Detect start of a different importer (sibling at indent 2) → leave target
+    if (inTargetImporter && /^\s{2}\S/.test(line) && !importerPattern.test(line) && !/^\s{4}/.test(line)) {
+      inTargetImporter = false;
+      inDepsSection = false;
+      continue;
+    }
+    if (inTargetImporter && /^\s{4}(?:dependencies|devDependencies|optionalDependencies):/.test(line)) {
       inDepsSection = true;
       continue;
     }
-    // Exit sections on de-indent
-    if (inRootImporter && /^\S/.test(line) && line.trim() !== '') {
-      inRootImporter = false;
+    if (inTargetImporter && /^\s{4}\S/.test(line) && !/^\s{4}(?:dependencies|devDependencies|optionalDependencies):/.test(line) && !/^\s{6}/.test(line)) {
       inDepsSection = false;
       continue;
-    }
-    if (inDepsSection && /^\s{4}\S/.test(line) && !/^\s{4}\s/.test(line.replace(/^\s{4}/, '  '))) {
-      // New top-level key under root importer that isn't a dep entry
-      if (/^\s{4}(?:dependencies|devDependencies|optionalDependencies):/.test(line)) {
-        continue;
-      }
-      if (!/^\s{6}/.test(line) && !/^\s{4}\s/.test(line)) {
-        inDepsSection = false;
-      }
     }
     if (inDepsSection) {
       // Dep entries look like: '      package-name:' or '      '@scope/name':'

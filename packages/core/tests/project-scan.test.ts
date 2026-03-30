@@ -217,6 +217,43 @@ describe('lockfile check', () => {
     expect(scan.lockfileCheck.lockfileExists).toBe(true);
     expect(scan.lockfileCheck.inSync).toBe(true);
   });
+
+  it('finds pnpm lockfile at monorepo root and matches sub-package importer', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'devassemble-mono-'));
+    const subDir = join(root, 'apps', 'my-app');
+    await mkdir(subDir, { recursive: true });
+    await createProjectWithPackageJson(subDir, { next: '^15.0.0', react: '^18.0.0' });
+    // Lockfile lives at the monorepo root, not in the sub-package
+    await writeFile(
+      join(root, 'pnpm-lock.yaml'),
+      [
+        "lockfileVersion: '9.0'",
+        'importers:',
+        '  .:',
+        '    dependencies:',
+        '      turbo:',
+        '        specifier: ^2.0.0',
+        '        version: 2.0.0',
+        '  apps/my-app:',
+        '    dependencies:',
+        '      next:',
+        '        specifier: ^15.0.0',
+        '        version: 15.0.0',
+        '      react:',
+        '        specifier: ^18.0.0',
+        '        version: 18.3.0',
+        'packages:',
+        '  next@15.0.0:',
+        '    resolution: {integrity: sha512-abc}',
+      ].join('\n'),
+    );
+
+    const scan = await scanProject(subDir);
+    expect(scan.lockfileCheck.packageManager).toBe('pnpm');
+    expect(scan.lockfileCheck.lockfileExists).toBe(true);
+    expect(scan.lockfileCheck.inSync).toBe(true);
+    expect(scan.lockfileCheck.missingFromLockfile).toEqual([]);
+  });
 });
 
 describe('scan-driven planner', () => {
