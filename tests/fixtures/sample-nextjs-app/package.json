@@ -8,16 +8,16 @@
     "start": "next start"
   },
   "dependencies": {
+    "@neondatabase/serverless": "0.9.0",
+    "drizzle-orm": "0.30.0",
     "next": "14.2.0",
     "react": "18.3.0",
-    "react-dom": "18.3.0",
-    "@neondatabase/serverless": "0.9.0",
-    "drizzle-orm": "0.30.0"
+    "react-dom": "18.3.0"
   },
   "devDependencies": {
-    "typescript": "5.4.0",
     "@types/node": "20.12.0",
     "@types/react": "18.3.0",
-    "drizzle-kit": "0.20.0"
+    "drizzle-kit": "0.20.0",
+    "typescript": "5.8.3"
   }
 }
