@@ -158,6 +158,20 @@ export class NeonClient {
     );
   }
 
+  getConnectionUri(
+    projectId: string,
+    databaseName = 'neondb',
+    roleName = 'neondb_owner',
+  ): Promise<{ uri: string }> {
+    return requestJson<{ uri: string }>(
+      `https://console.neon.tech/api/v2/projects/${projectId}/connection_uri?database_name=${encodeURIComponent(databaseName)}&role_name=${encodeURIComponent(roleName)}`,
+      {
+        method: 'GET',
+        headers: this.headers(),
+      },
+    );
+  }
+
   async deleteProject(projectId: string): Promise<void> {
     await requestJson<Record<string, never>>(
       `https://console.neon.tech/api/v2/projects/${projectId}`,

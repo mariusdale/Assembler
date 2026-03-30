@@ -117,12 +117,23 @@ export const neonProviderPack: ProviderPack = {
               projectId: match.id,
             });
             const branchId = await resolveBranchId(client, match.id);
+            let databaseUrl: string | undefined;
+            try {
+              const conn = await client.getConnectionUri(match.id);
+              databaseUrl = conn.uri;
+            } catch {
+              ctx.log('warn', 'Could not fetch connection URI for existing Neon project.', {
+                provider: 'neon',
+                projectId: match.id,
+              });
+            }
             return {
               success: true,
               outputs: {
                 projectId: match.id,
                 projectName: match.name,
                 branchId,
+                ...(databaseUrl ? { databaseUrl } : {}),
               },
               message: `Reused existing Neon project "${projectName}".`,
             };
