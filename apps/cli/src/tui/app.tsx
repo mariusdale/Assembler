@@ -16,6 +16,7 @@ import { PreviewScreen } from './screens/PreviewScreen.js';
 import { DomainScreen } from './screens/DomainScreen.js';
 import { CredsScreen } from './screens/CredsScreen.js';
 import { HelpScreen } from './screens/HelpScreen.js';
+import { DoctorScreen } from './screens/DoctorScreen.js';
 import type { TuiAction, TuiState } from './types.js';
 
 function App({ app }: { app: ReturnType<typeof createCliApp> }) {
@@ -70,6 +71,8 @@ function ScreenRouter({
       return <DomainScreen dispatch={dispatch} />;
     case 'creds':
       return <CredsScreen dispatch={dispatch} />;
+    case 'doctor':
+      return <DoctorScreen dispatch={dispatch} />;
     case 'help':
       return <HelpScreen dispatch={dispatch} />;
   }

@@ -20,6 +20,7 @@ const MENU_ITEMS: MenuItem[] = [
   { label: 'Preview', value: 'preview', description: 'Create preview environment' },
   { label: 'Domain', value: 'domain', description: 'Manage custom domains' },
   { label: 'Credentials', value: 'creds', description: 'Manage provider tokens' },
+  { label: 'Doctor', value: 'doctor', description: 'Check system readiness' },
   { label: '─────────────', value: 'separator' },
   { label: 'Help', value: 'help', description: 'Show help' },
   { label: 'Quit', value: 'quit', description: 'Exit' },

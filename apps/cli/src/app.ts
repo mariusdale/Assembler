@@ -25,6 +25,18 @@ export interface LaunchResult {
   runPlan: RunPlan;
 }
 
+export interface DoctorCheckResult {
+  provider: string;
+  hasCredentials: boolean;
+  preflightResult?: import('@devassemble/types').PreflightResult;
+}
+
+export interface DoctorResult {
+  nodeVersion: string;
+  checks: DoctorCheckResult[];
+  allHealthy: boolean;
+}
+
 export interface CliApp {
   scan(): Promise<ProjectScan>;
   createPlan(projectScan: ProjectScan): RunPlan;
@@ -46,6 +58,7 @@ export interface CliApp {
   addCredential(provider: string, entries: string[]): Promise<void>;
   listCredentials(): Promise<string[]>;
   discover(provider: string): Promise<DiscoveryResult>;
+  doctor(): Promise<DoctorResult>;
 }
 
 export interface PreviewResult {
@@ -569,6 +582,46 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       }
 
       return pack.discover(resolveCredentials(provider, stateStore.getCredentialRecord(provider)));
+    },
+    doctor: async (): Promise<DoctorResult> => {
+      const allProviders = ['github', 'neon', 'vercel', 'clerk', 'stripe', 'sentry', 'resend', 'cloudflare'];
+      const checks: DoctorCheckResult[] = [];
+
+      for (const provider of allProviders) {
+        const record = stateStore.getCredentialRecord(provider);
+        const hasCredentials = !!record;
+        const check: DoctorCheckResult = { provider, hasCredentials };
+
+        if (hasCredentials) {
+          const pack = providerRegistry[provider];
+          if (pack?.preflight) {
+            try {
+              check.preflightResult = await pack.preflight(
+                resolveCredentials(provider, record),
+              );
+            } catch {
+              check.preflightResult = {
+                valid: false,
+                errors: [{
+                  code: `${provider.toUpperCase()}_PREFLIGHT_ERROR`,
+                  message: 'Preflight check failed unexpectedly.',
+                  remediation: 'Check your network connection and try again.',
+                }],
+              };
+            }
+          }
+        }
+
+        checks.push(check);
+      }
+
+      return {
+        nodeVersion: process.version,
+        checks,
+        allHealthy: checks
+          .filter((c) => c.hasCredentials)
+          .every((c) => c.preflightResult?.valid !== false),
+      };
     },
   };
 }

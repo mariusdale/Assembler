@@ -11,6 +11,7 @@ export type ScreenName =
   | 'preview'
   | 'domain'
   | 'creds'
+  | 'doctor'
   | 'help';
 
 export interface TuiState {

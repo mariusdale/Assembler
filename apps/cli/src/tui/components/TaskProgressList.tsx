@@ -1,22 +1,84 @@
 import React from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useInput } from 'ink';
 import Spinner from 'ink-spinner';
 import type { Task } from '@devassemble/types';
 
-export function TaskProgressList({ tasks }: { tasks: Task[] }) {
+export type FailureAction = 'retry' | 'skip' | 'abort';
+
+interface TaskProgressListProps {
+  tasks: Task[];
+  onFailureAction?: ((taskId: string, action: FailureAction) => void) | undefined;
+}
+
+export function TaskProgressList({ tasks, onFailureAction }: TaskProgressListProps) {
   const completed = tasks.filter(
     (t) => t.status === 'success' || t.status === 'failed' || t.status === 'skipped' || t.status === 'rolled_back',
   ).length;
+
+  const failedTask = onFailureAction
+    ? tasks.find((t) => t.status === 'failed')
+    : undefined;
 
   return (
     <Box flexDirection="column">
       {tasks.map((task) => (
         <TaskRow key={task.id} task={task} />
       ))}
-      <Box marginTop={1}>
-        <Text dimColor>
-          {completed}/{tasks.length} tasks complete
-        </Text>
+      {failedTask && onFailureAction ? (
+        <FailurePrompt
+          taskId={failedTask.id}
+          taskName={failedTask.name}
+          error={failedTask.error}
+          onAction={(action) => onFailureAction(failedTask.id, action)}
+        />
+      ) : (
+        <Box marginTop={1}>
+          <Text dimColor>
+            {completed}/{tasks.length} tasks complete
+          </Text>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+function FailurePrompt({
+  taskId,
+  taskName,
+  error,
+  onAction,
+}: {
+  taskId: string;
+  taskName: string;
+  error?: string | undefined;
+  onAction: (action: FailureAction) => void;
+}) {
+  useInput((input) => {
+    if (input === 'r' || input === 'R') {
+      onAction('retry');
+    } else if (input === 's' || input === 'S') {
+      onAction('skip');
+    } else if (input === 'a' || input === 'A') {
+      onAction('abort');
+    }
+  });
+
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      <Box borderStyle="single" borderColor="red" paddingX={1} flexDirection="column">
+        <Text bold color="red">Task failed: {taskName}</Text>
+        {error ? (
+          <Text color="red" dimColor>{error}</Text>
+        ) : null}
+        <Box marginTop={1}>
+          <Text>
+            <Text bold color="yellow">[r]</Text><Text>etry</Text>
+            <Text>  </Text>
+            <Text bold color="yellow">[s]</Text><Text>kip</Text>
+            <Text>  </Text>
+            <Text bold color="yellow">[a]</Text><Text>bort</Text>
+          </Text>
+        </Box>
       </Box>
     </Box>
   );

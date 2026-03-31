@@ -75,6 +75,7 @@ const EXPECTED_TASK_IDS = [
   'vercel-sync-predeploy-env-vars',
   'vercel-deploy-preview',
   'vercel-wait-for-ready',
+  'vercel-health-check',
 ];
 
 const tempDirs: string[] = [];
@@ -123,6 +124,7 @@ describe('launch flow integration', () => {
     );
     expect(deps['vercel-deploy-preview']).toEqual(['vercel-sync-predeploy-env-vars']);
     expect(deps['vercel-wait-for-ready']).toEqual(['vercel-deploy-preview']);
+    expect(deps['vercel-health-check']).toEqual(['vercel-wait-for-ready']);
   });
 
   it('includes Stripe and Clerk tasks when those providers are detected', () => {
@@ -223,6 +225,12 @@ describe('launch flow integration', () => {
         readyState: 'READY',
         previewUrl: 'https://sample-nextjs-app-abc123.vercel.app',
       },
+      'vercel-health-check': {
+        url: 'https://sample-nextjs-app-abc123.vercel.app',
+        statusCode: 200,
+        responseTimeMs: 150,
+        healthy: true,
+      },
     };
 
     function createRecordingProvider(providerName: string): ProviderPack {
@@ -281,6 +289,11 @@ describe('launch flow integration', () => {
           if (task.id === 'vercel-wait-for-ready') {
             const deploymentId = ctx.getOutput('vercel-deploy-preview', 'deploymentId');
             expect(deploymentId).toBe('dpl_vercel_001');
+          }
+
+          if (task.id === 'vercel-health-check') {
+            const previewUrl = ctx.getOutput('vercel-wait-for-ready', 'previewUrl');
+            expect(previewUrl).toBe('https://sample-nextjs-app-abc123.vercel.app');
           }
 
           const outputs = mockOutputs[task.id] ?? {};

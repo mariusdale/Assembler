@@ -157,49 +157,44 @@ export const githubProviderPack: ProviderPack = {
         }
 
         const files = await loadProjectFiles(directory);
-        let lastCommitSha: string | undefined;
+        ctx.log('info', `Pushing ${files.length} files to ${owner}/${repoName}...`, {
+          provider: 'github',
+          repoName,
+        });
 
-        for (const file of files) {
-          ctx.log('info', `Uploading project file ${file.path}`, {
-            provider: 'github',
-            repoName,
-          });
-          try {
-            const response = await client.createOrUpdateFile({
-              owner,
-              repo: repoName,
-              path: file.path,
-              content: file.content,
-              message: `Sync ${file.path}`,
-              branch,
-            });
-            lastCommitSha = response.commit.sha;
-          } catch (error) {
-            if (error instanceof HttpError && error.status === 404) {
-              throw new Error(
-                `Failed to push file "${file.path}" to ${owner}/${repoName}: repository not found or not yet initialized. ` +
-                `The repo may still be initializing — try running "devassemble resume" in a few seconds.`,
-              );
-            }
-            if (error instanceof HttpError && error.status === 403) {
-              throw new Error(
-                `Failed to push file "${file.path}" to ${owner}/${repoName}: permission denied. ` +
-                `Ensure your GitHub token has the "repo" scope. Generate a new token at https://github.com/settings/tokens`,
-              );
-            }
-            throw error;
-          }
-        }
-
-        return {
-          success: true,
-          outputs: {
+        try {
+          const result = await client.pushFiles({
+            owner,
+            repo: repoName,
             branch,
-            fileCount: files.length,
-            ...(lastCommitSha ? { latestCommitSha: lastCommitSha } : {}),
-          },
-          message: `Uploaded ${files.length} project files to ${owner}/${repoName}.`,
-        };
+            message: `Deploy via DevAssemble`,
+            files,
+          });
+
+          return {
+            success: true,
+            outputs: {
+              branch,
+              fileCount: files.length,
+              latestCommitSha: result.commitSha,
+            },
+            message: `Pushed ${files.length} files to ${owner}/${repoName} in a single commit.`,
+          };
+        } catch (error) {
+          if (error instanceof HttpError && error.status === 404) {
+            throw new Error(
+              `Failed to push to ${owner}/${repoName}: repository not found or not yet initialized. ` +
+              `The repo may still be initializing — try running "devassemble resume" in a few seconds.`,
+            );
+          }
+          if (error instanceof HttpError && error.status === 403) {
+            throw new Error(
+              `Failed to push to ${owner}/${repoName}: permission denied. ` +
+              `Ensure your GitHub token has the "repo" scope. Generate a new token at https://github.com/settings/tokens`,
+            );
+          }
+          throw error;
+        }
       }
       case 'commit-template': {
         const owner = asString(

@@ -26,6 +26,7 @@ export const vercelProviderPack: ProviderPack = {
     'add-domain',
     'set-preview-env-var',
     'deploy-branch-preview',
+    'health-check',
   ],
   preflight: async (creds: Credentials): Promise<PreflightResult> => {
     const errors: PreflightResult['errors'] = [];
@@ -303,6 +304,69 @@ export const vercelProviderPack: ProviderPack = {
           await sleep(pollIntervalMs);
         }
       }
+      case 'health-check': {
+        const previewUrl =
+          asOptionalString(ctx.getOutput('vercel-wait-for-ready', 'previewUrl')) ??
+          asOptionalString(ctx.getOutput('vercel-deploy-preview', 'previewUrl'));
+
+        if (!previewUrl) {
+          throw new Error(
+            'No preview URL available for health check. Ensure the deployment completed successfully.',
+          );
+        }
+
+        const healthTimeoutMs = asOptionalNumber(task.params.timeoutMs) ?? 30_000;
+        const healthStartedAt = Date.now();
+        let lastError: string | undefined;
+        let statusCode: number | undefined;
+        let responseTimeMs: number | undefined;
+
+        while (true) {
+          try {
+            const fetchStart = Date.now();
+            const response = await fetch(previewUrl, {
+              method: 'GET',
+              redirect: 'follow',
+              signal: AbortSignal.timeout(10_000),
+            });
+            responseTimeMs = Date.now() - fetchStart;
+            statusCode = response.status;
+
+            if (response.ok) {
+              return {
+                success: true,
+                outputs: {
+                  url: previewUrl,
+                  statusCode,
+                  responseTimeMs,
+                  healthy: true,
+                },
+                message: `Health check passed: ${previewUrl} returned ${statusCode} in ${responseTimeMs}ms.`,
+              };
+            }
+
+            lastError = `HTTP ${response.status}`;
+          } catch (err) {
+            lastError = err instanceof Error ? err.message : String(err);
+          }
+
+          if (Date.now() - healthStartedAt >= healthTimeoutMs) {
+            return {
+              success: true,
+              outputs: {
+                url: previewUrl,
+                statusCode,
+                responseTimeMs,
+                healthy: false,
+                error: lastError,
+              },
+              message: `Health check warning: ${previewUrl} did not return 200 within ${healthTimeoutMs / 1000}s (last: ${lastError}). The deployment may still be starting up.`,
+            };
+          }
+
+          await sleep(3_000);
+        }
+      }
       case 'set-preview-env-var': {
         const projectId = asString(
           task.params.projectId ?? getOptionalProjectId(ctx),
@@ -432,6 +496,10 @@ export const vercelProviderPack: ProviderPack = {
       return {
         success: asOptionalString(task.outputs.readyState) === 'READY',
       };
+    }
+
+    if (task.action === 'health-check') {
+      return { success: true };
     }
 
     if (

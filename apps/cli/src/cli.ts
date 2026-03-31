@@ -7,7 +7,7 @@ import ora from 'ora';
 import type { ProjectScan, RunPlan, Task } from '@devassemble/types';
 
 import { createCliApp } from './app.js';
-import type { PreflightCheckResults, EnvPullResult, EnvPushResult, SetupResult, DomainAddResult, PreviewResult, PreviewTeardownResult } from './app.js';
+import type { PreflightCheckResults, EnvPullResult, EnvPushResult, SetupResult, DomainAddResult, PreviewResult, PreviewTeardownResult, DoctorResult } from './app.js';
 
 const FRAMEWORK_LABELS: Record<string, string> = {
   nextjs: 'Next.js',
@@ -630,6 +630,58 @@ export function createProgram(): Command {
 
       for (const provider of providers) {
         console.log(provider);
+      }
+    });
+
+  program
+    .command('doctor')
+    .description('Check system readiness and validate all provider credentials.')
+    .action(async () => {
+      const spinner = ora('Running diagnostics...').start();
+      let result: DoctorResult;
+      try {
+        result = await getApp().doctor();
+        spinner.stop();
+      } catch (error) {
+        spinner.fail('Doctor check failed');
+        printError(error);
+        process.exitCode = 1;
+        return;
+      }
+
+      console.log(chalk.bold('DevAssemble Doctor'));
+      console.log();
+      console.log(`  Node.js: ${chalk.green(result.nodeVersion)}`);
+      console.log();
+      console.log(chalk.bold('Provider Credentials:'));
+
+      for (const check of result.checks) {
+        const label = PROVIDER_LABELS[check.provider] ?? check.provider;
+
+        if (!check.hasCredentials) {
+          console.log(`  ${chalk.dim('○')} ${chalk.dim(label)} ${chalk.dim('— not configured')}`);
+          continue;
+        }
+
+        if (check.preflightResult?.valid) {
+          console.log(`  ${chalk.green('✓')} ${label}`);
+        } else {
+          console.log(`  ${chalk.red('✗')} ${label}`);
+          for (const err of check.preflightResult?.errors ?? []) {
+            console.log(`    ${chalk.red(err.message)}`);
+            if (err.remediation) {
+              console.log(`    ${chalk.dim(err.remediation)}`);
+            }
+          }
+        }
+      }
+
+      console.log();
+      if (result.allHealthy) {
+        console.log(chalk.green('All configured providers are healthy.'));
+      } else {
+        console.log(chalk.yellow('Some providers have issues. Fix them before running "devassemble launch".'));
+        process.exitCode = 1;
       }
     });
 

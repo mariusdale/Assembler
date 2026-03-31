@@ -5,13 +5,13 @@ import type { ProjectScan, RunPlan, Task } from '@devassemble/types';
 import { useCliApp } from '../context.js';
 import { useNavigation } from '../hooks/use-navigation.js';
 import { useEventStream } from '../hooks/use-event-stream.js';
-import { TaskProgressList } from '../components/TaskProgressList.js';
+import { TaskProgressList, type FailureAction } from '../components/TaskProgressList.js';
 import { ErrorBox } from '../components/ErrorBox.js';
 import { ConfirmPrompt } from '../components/ConfirmPrompt.js';
 import type { TuiState, TuiAction } from '../types.js';
 import type { PreflightCheckResults } from '../../app.js';
 
-type LaunchPhase = 'scan' | 'preflight' | 'plan' | 'confirm' | 'execute' | 'complete' | 'error';
+type LaunchPhase = 'scan' | 'preflight' | 'plan' | 'confirm' | 'execute' | 'execute-paused' | 'complete' | 'error';
 
 const FRAMEWORK_LABELS: Record<string, string> = {
   nextjs: 'Next.js',
@@ -133,8 +133,69 @@ export function LaunchScreen({
       setExecutedPlan(result);
       setPhase('complete');
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      // Check if a task failed — if so, pause for user decision
+      const failedTask = runPlan.tasks.find((t) => t.status === 'failed');
+      if (failedTask) {
+        setPhase('execute-paused');
+      } else {
+        setError(err instanceof Error ? err.message : String(err));
+        setPhase('error');
+      }
+    }
+  }, [app, runPlan]);
+
+  const handleFailureAction = useCallback(async (taskId: string, action: FailureAction) => {
+    if (!runPlan) return;
+
+    if (action === 'abort') {
+      setError('Launch aborted by user.');
       setPhase('error');
+      return;
+    }
+
+    if (action === 'skip') {
+      const updatedTasks = runPlan.tasks.map((t) =>
+        t.id === taskId ? { ...t, status: 'skipped' as const } : t,
+      );
+      setRunPlan({ ...runPlan, tasks: updatedTasks });
+      setPhase('execute');
+      try {
+        const result = await app.executePlan({ ...runPlan, tasks: updatedTasks });
+        setExecutedPlan(result);
+        setPhase('complete');
+      } catch (err) {
+        const failedTask = updatedTasks.find((t) => t.status === 'failed');
+        if (failedTask) {
+          setPhase('execute-paused');
+        } else {
+          setError(err instanceof Error ? err.message : String(err));
+          setPhase('error');
+        }
+      }
+      return;
+    }
+
+    if (action === 'retry') {
+      const updatedTasks = runPlan.tasks.map((t) => {
+        if (t.id !== taskId) return t;
+        const { error: _err, ...rest } = t;
+        return { ...rest, status: 'pending' as const };
+      });
+      setRunPlan({ ...runPlan, tasks: updatedTasks });
+      setPhase('execute');
+      try {
+        const result = await app.executePlan({ ...runPlan, tasks: updatedTasks });
+        setExecutedPlan(result);
+        setPhase('complete');
+      } catch (err) {
+        const failedTask = updatedTasks.find((t) => t.status === 'failed');
+        if (failedTask) {
+          setPhase('execute-paused');
+        } else {
+          setError(err instanceof Error ? err.message : String(err));
+          setPhase('error');
+        }
+      }
     }
   }, [app, runPlan]);
 
@@ -173,6 +234,9 @@ export function LaunchScreen({
         )}
         {phase === 'execute' && runPlan && (
           <ExecutePhase tasks={runPlan.tasks} />
+        )}
+        {phase === 'execute-paused' && runPlan && (
+          <ExecutePhase tasks={runPlan.tasks} onFailureAction={handleFailureAction} />
         )}
         {phase === 'complete' && executedPlan && (
           <CompletePhase plan={executedPlan} goBack={goBack} />
@@ -272,12 +336,18 @@ function PlanPhase({
   );
 }
 
-function ExecutePhase({ tasks }: { tasks: Task[] }) {
+function ExecutePhase({
+  tasks,
+  onFailureAction,
+}: {
+  tasks: Task[];
+  onFailureAction?: ((taskId: string, action: FailureAction) => void) | undefined;
+}) {
   return (
     <Box flexDirection="column">
       <Text bold>Executing...</Text>
       <Box marginTop={1}>
-        <TaskProgressList tasks={tasks} />
+        <TaskProgressList tasks={tasks} onFailureAction={onFailureAction} />
       </Box>
     </Box>
   );

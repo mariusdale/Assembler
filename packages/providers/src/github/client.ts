@@ -130,6 +130,119 @@ export class GitHubClient {
     );
   }
 
+  async createBlob(
+    owner: string,
+    repo: string,
+    content: string,
+    encoding: 'utf-8' | 'base64',
+  ): Promise<{ sha: string }> {
+    return requestJson(`https://api.github.com/repos/${owner}/${repo}/git/blobs`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ content, encoding }),
+    });
+  }
+
+  async createTree(
+    owner: string,
+    repo: string,
+    tree: Array<{ path: string; mode: '100644'; type: 'blob'; sha: string }>,
+    baseTree?: string,
+  ): Promise<{ sha: string }> {
+    return requestJson(`https://api.github.com/repos/${owner}/${repo}/git/trees`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({
+        tree,
+        ...(baseTree ? { base_tree: baseTree } : {}),
+      }),
+    });
+  }
+
+  async createCommit(
+    owner: string,
+    repo: string,
+    message: string,
+    tree: string,
+    parents: string[],
+  ): Promise<{ sha: string }> {
+    return requestJson(`https://api.github.com/repos/${owner}/${repo}/git/commits`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ message, tree, parents }),
+    });
+  }
+
+  async updateRef(owner: string, repo: string, ref: string, sha: string): Promise<void> {
+    await requestJson(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${ref}`, {
+      method: 'PATCH',
+      headers: this.headers(),
+      body: JSON.stringify({ sha }),
+    });
+  }
+
+  async getRef(
+    owner: string,
+    repo: string,
+    ref: string,
+  ): Promise<{ object: { sha: string } }> {
+    return requestJson(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${ref}`, {
+      method: 'GET',
+      headers: this.headers(),
+    });
+  }
+
+  async pushFiles(input: {
+    owner: string;
+    repo: string;
+    branch: string;
+    message: string;
+    files: Array<{ path: string; content: Buffer }>;
+  }): Promise<{ commitSha: string }> {
+    // 1. Get current HEAD SHA
+    const ref = await this.getRef(input.owner, input.repo, input.branch);
+    const parentSha = ref.object.sha;
+
+    // 2. Create blobs for each file
+    const treeEntries: Array<{
+      path: string;
+      mode: '100644';
+      type: 'blob';
+      sha: string;
+    }> = [];
+    for (const file of input.files) {
+      const blob = await this.createBlob(
+        input.owner,
+        input.repo,
+        Buffer.from(file.content).toString('base64'),
+        'base64',
+      );
+      treeEntries.push({
+        path: file.path,
+        mode: '100644',
+        type: 'blob',
+        sha: blob.sha,
+      });
+    }
+
+    // 3. Create tree
+    const tree = await this.createTree(input.owner, input.repo, treeEntries, parentSha);
+
+    // 4. Create commit
+    const commit = await this.createCommit(
+      input.owner,
+      input.repo,
+      input.message,
+      tree.sha,
+      [parentSha],
+    );
+
+    // 5. Update ref
+    await this.updateRef(input.owner, input.repo, input.branch, commit.sha);
+
+    return { commitSha: commit.sha };
+  }
+
   private async getFile(
     owner: string,
     repo: string,

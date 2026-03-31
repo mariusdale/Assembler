@@ -268,6 +268,15 @@ function createTaskSeedsFromProjectScan(projectScan: ProjectScan): PlannerTaskSe
         ['vercel-deploy-preview'],
       ),
     );
+    seeds.push(
+      taskSeed(
+        'vercel-health-check',
+        'Verify deployment health',
+        'vercel',
+        'health-check',
+        ['vercel-wait-for-ready'],
+      ),
+    );
   }
 
   return seeds;
