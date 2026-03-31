@@ -17,7 +17,7 @@ import type { AppSpec, Credentials, DiscoveryResult, PreviewRecord, ProjectScan,
 
 const STATE_DIRECTORY_NAME = '.devassemble';
 const STATE_FILENAME = 'state.db';
-const REQUIRED_LIVE_PROVIDERS = new Set(['clerk', 'cloudflare', 'github', 'neon', 'stripe', 'vercel']);
+const REQUIRED_LIVE_PROVIDERS = new Set(['clerk', 'cloudflare', 'github', 'neon', 'resend', 'sentry', 'stripe', 'vercel']);
 
 export interface LaunchResult {
   projectScan: ProjectScan;

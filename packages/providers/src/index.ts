@@ -4,13 +4,13 @@ import { clerkProviderPack } from './clerk/index.js';
 import { cloudflareProviderPack } from './cloudflare/index.js';
 import { githubProviderPack } from './github/index.js';
 import { neonProviderPack } from './neon/index.js';
+import { resendProviderPack } from './resend/index.js';
+import { sentryProviderPack } from './sentry/index.js';
 import { stripeProviderPack } from './stripe/index.js';
 import { vercelProviderPack } from './vercel/index.js';
 import {
   placeholderProviderPacks,
   posthogProviderPack,
-  resendProviderPack,
-  sentryProviderPack,
 } from './placeholders.js';
 
 export const plannedProviders = [
@@ -33,6 +33,8 @@ export function createProviderRegistry(): Record<string, ProviderPack> {
     cloudflare: cloudflareProviderPack,
     github: githubProviderPack,
     neon: neonProviderPack,
+    resend: resendProviderPack,
+    sentry: sentryProviderPack,
     stripe: stripeProviderPack,
     vercel: vercelProviderPack,
     ...placeholderProviderPacks,
@@ -56,3 +58,5 @@ export {
 export { ClerkClient } from './clerk/client.js';
 export { CloudflareClient } from './cloudflare/client.js';
 export { NeonClient } from './neon/client.js';
+export { ResendClient } from './resend/client.js';
+export { SentryClient } from './sentry/client.js';

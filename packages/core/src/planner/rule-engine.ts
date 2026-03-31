@@ -169,6 +169,30 @@ function createTaskSeedsFromProjectScan(projectScan: ProjectScan): PlannerTaskSe
     );
   }
 
+  if (requiresProvider(projectScan, 'sentry')) {
+    seeds.push(
+      taskSeed(
+        'sentry-capture-dsn',
+        'Capture Sentry DSN',
+        'sentry',
+        'capture-dsn',
+        [repoTaskId],
+      ),
+    );
+  }
+
+  if (requiresProvider(projectScan, 'resend')) {
+    seeds.push(
+      taskSeed(
+        'resend-capture-api-key',
+        'Capture Resend API key',
+        'resend',
+        'capture-api-key',
+        [repoTaskId],
+      ),
+    );
+  }
+
   if (projectScan.framework === 'nextjs') {
     const predeployDependencies = ['github-push-code'];
     if (requiresProvider(projectScan, 'neon')) {
@@ -179,6 +203,12 @@ function createTaskSeedsFromProjectScan(projectScan: ProjectScan): PlannerTaskSe
     }
     if (requiresProvider(projectScan, 'clerk')) {
       predeployDependencies.push('clerk-capture-keys');
+    }
+    if (requiresProvider(projectScan, 'sentry')) {
+      predeployDependencies.push('sentry-capture-dsn');
+    }
+    if (requiresProvider(projectScan, 'resend')) {
+      predeployDependencies.push('resend-capture-api-key');
     }
 
     seeds.push(

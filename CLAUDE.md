@@ -7,7 +7,7 @@ their project directory to go live without touching any provider dashboards.
 ## Current milestone: Post-deploy health check (Milestone 12)
 
 Milestones 1-11 are complete. The CLI has launch, setup, plan, teardown, env sync,
-preview environments, custom domains, and six live providers.
+preview environments, custom domains, and eight live providers.
 
 ## Architecture
 
@@ -15,7 +15,7 @@ preview environments, custom domains, and six live providers.
 apps/cli/          CLI entry point (commander, ora, chalk)
 packages/types/    Shared type contracts (ProjectScan, RunPlan, Task, ProviderPack, etc.)
 packages/core/     Planner (rule engine, project scanner) and executor (DAG runtime, state store)
-packages/providers/ Provider implementations (github, neon, stripe, vercel, clerk, cloudflare) + placeholders
+packages/providers/ Provider implementations (github, neon, stripe, vercel, clerk, cloudflare, sentry, resend) + placeholders
 apps/web/          Placeholder — no web dashboard in scope
 ```
 
@@ -40,7 +40,7 @@ apps/web/          Placeholder — no web dashboard in scope
 - **Every error needs a remediation hint.** Never surface raw HTTP errors.
 - **Idempotent provider actions.** If a resource already exists, detect and continue.
 - **Checkpoint after every task.** SQLite state store updates after every status change.
-- Six live providers: GitHub, Neon, Stripe, Vercel, Clerk, Cloudflare. Others (Resend, Sentry, PostHog) remain placeholders.
+- Eight live providers: GitHub, Neon, Stripe, Vercel, Clerk, Cloudflare, Sentry, Resend. PostHog remains a placeholder.
 
 ## Provider credentials
 
@@ -69,6 +69,22 @@ Clerk supports structured entries: `devassemble creds add clerk token=<secret-ke
 - `capture-keys` validates the secret key against `GET /v1/instances`, outputs `secretKey` + `publishableKey` + `mode`.
 - Vercel env var sync picks up `CLERK_SECRET_KEY` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`.
 
+## Sentry provider design
+
+- Sentry is detected when the scanner finds `@sentry/nextjs` in deps, `SENTRY_DSN` in env vars, or `sentry.*.config.*` files.
+- The scan path generates a single `sentry-capture-dsn` task (no project creation — DevAssemble reads existing Sentry projects).
+- `capture-dsn` lists orgs → finds/matches project (prefers Next.js-related slugs) → reads DSN from project keys.
+- Vercel env var sync picks up `SENTRY_DSN` from the capture task outputs.
+- Token format: `sntrys_` prefix or 64-character hex string.
+
+## Resend provider design
+
+- Resend is detected when the scanner finds `resend` in deps or `RESEND_API_KEY` in env vars.
+- The scan path generates a single `resend-capture-api-key` task (same capture-keys pattern).
+- `capture-api-key` validates the API key against `GET /api-keys`, outputs `apiKey`.
+- Vercel env var sync picks up `RESEND_API_KEY` from the capture task outputs.
+- Key format: `re_` prefix.
+
 ## Cloudflare provider design
 
 - Cloudflare is used for custom domain DNS management via `devassemble domain add`.
@@ -93,5 +109,7 @@ Clerk supports structured entries: `devassemble creds add clerk token=<secret-ke
 2. `devassemble creds add github <github-pat-with-repo-scope>`
 3. `devassemble creds add neon <neon-account-api-key>`
 4. `devassemble creds add stripe <stripe-secret-key>` (only if project uses Stripe)
-5. `devassemble creds add vercel token=<vercel-token>`
-6. `cd <project-dir> && devassemble launch`
+5. `devassemble creds add sentry <sentry-auth-token>` (only if project uses Sentry)
+6. `devassemble creds add resend <resend-api-key>` (only if project uses Resend)
+7. `devassemble creds add vercel token=<vercel-token>`
+8. `cd <project-dir> && devassemble launch`
