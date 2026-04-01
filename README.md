@@ -4,9 +4,25 @@
 [![CI](https://github.com/devassemble/devassemble/actions/workflows/ci.yml/badge.svg)](https://github.com/devassemble/devassemble/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Launch your app from the terminal. No dashboard-hopping.**
+**Launch your Next.js app from the terminal. No dashboard-hopping.**
 
 DevAssemble scans your project, detects what infrastructure it needs, provisions everything, and deploys — all from one command. You build the app; DevAssemble handles the rest.
+
+## Private Beta
+
+DevAssemble is in a **private beta** focused on indie hackers shipping **Next.js SaaS apps**. The current product promise is intentionally narrow:
+
+- Scan an existing Next.js app
+- Provision GitHub, Neon, and Vercel
+- Capture common provider credentials and sync env vars
+- Show a launch-ready TUI before, during, and after deploys
+
+If you want the beta process, supported scope, and feedback expectations, start here:
+
+- [Private beta guide](docs/private-beta.md)
+- [Release checklist](docs/release-checklist.md)
+- [Support runbook](docs/support-runbook.md)
+- [Outreach assets](docs/outreach.md)
 
 ```
 $ devassemble launch
@@ -59,20 +75,20 @@ cd your-nextjs-app
 devassemble launch
 ```
 
-That's it. DevAssemble scans your `package.json` and `.env.example`, provisions a database, creates a GitHub repo, pushes your code, and deploys to Vercel with all environment variables wired up.
+That’s the core beta flow. DevAssemble scans your `package.json` and `.env.example`, provisions a database, creates a GitHub repo, pushes your code, and deploys to Vercel with the detected environment variables wired up.
 
 ## Providers
 
 | Provider | What it does | Status |
 |---|---|---|
-| **GitHub** | Repository hosting, code push | Live |
-| **Neon** | Postgres database provisioning | Live |
-| **Vercel** | Hosting, deployments, env vars | Live |
-| **Clerk** | Authentication key capture | Live |
-| **Stripe** | Payment key capture | Live |
-| **Sentry** | Error tracking DSN capture | Live |
-| **Resend** | Email API key capture | Live |
-| **Cloudflare** | Custom domain DNS management | Live |
+| **GitHub** | Repository hosting, code push | Beta |
+| **Neon** | Postgres database provisioning | Beta |
+| **Vercel** | Hosting, deployments, env vars | Beta |
+| **Clerk** | Authentication key capture | Beta |
+| **Stripe** | Payment key capture | Beta |
+| **Sentry** | Error tracking DSN capture | Beta |
+| **Resend** | Email API key capture | Beta |
+| **Cloudflare** | Custom domain DNS management | Beta |
 | **PostHog** | Product analytics | Planned |
 
 ## Commands
@@ -94,6 +110,13 @@ That's it. DevAssemble scans your `package.json` and `.env.example`, provisions 
 | `devassemble creds add <provider> <token>` | Add provider credentials |
 | `devassemble creds list` | List configured providers |
 
+## Supported Beta Scope
+
+- Existing **Next.js** project directories
+- Launch flow centered on **GitHub + Vercel**, with **Neon** when `DATABASE_URL` is detected
+- Credential capture and env sync for Clerk, Stripe, Resend, and Sentry when detected
+- Preview environments and custom domains as beta workflows
+
 ## How It Works
 
 1. **Scan** — Reads `package.json`, `.env.example`, and project structure to detect your framework and required services.
@@ -101,7 +124,7 @@ That's it. DevAssemble scans your `package.json` and `.env.example`, provisions 
 3. **Plan** — Generates a task DAG: repo creation, database provisioning, env var sync, deployment.
 4. **Approve** — You review the plan and confirm.
 5. **Execute** — Tasks run in dependency order, checkpointed to SQLite for resumability.
-6. **Health Check** — Verifies the deployment responds with HTTP 200.
+6. **Health Check** — Verifies the deployment is reachable and surfaces warnings when Vercel preview protection blocks a public 200.
 
 ## Credential Setup
 
@@ -140,6 +163,12 @@ devassemble
 
 Navigate with arrow keys to launch, view status, manage credentials, and more.
 
+The TUI now shows:
+
+- launch readiness and blockers before execution
+- live task progress plus recent run activity during execution
+- outcome summaries, warnings, and next steps after execution
+
 ## Preview Environments
 
 Create isolated preview environments per git branch:
@@ -165,7 +194,18 @@ Configures Cloudflare DNS and registers the domain on your Vercel project. SSL i
 ## Requirements
 
 - Node.js >= 20
-- A Next.js project (more frameworks coming)
+- A Next.js project
+
+## Feedback
+
+Private beta feedback is most useful when it includes:
+
+- your `runId`
+- the first failing task name
+- the provider involved
+- the remediation text shown by DevAssemble
+
+The support flow and triage checklist are documented in [docs/support-runbook.md](docs/support-runbook.md).
 
 ## Development
 

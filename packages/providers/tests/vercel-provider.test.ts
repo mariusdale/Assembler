@@ -195,6 +195,94 @@ describe('vercel provider pack', () => {
       ),
     ).toBe(true);
   });
+
+  it('resolves preview DATABASE_URL from the Neon preview branch output', async () => {
+    const requests: Array<{ url: string; method: string; body?: string }> = [];
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL, init?: RequestInit) => {
+        const url = input.toString();
+        requests.push({
+          url,
+          method: init?.method ?? 'GET',
+          ...(typeof init?.body === 'string' ? { body: init.body } : {}),
+        });
+
+        if (url.includes('/v10/projects/prj_456/env') && init?.method === 'POST') {
+          return Promise.resolve(new Response('{}', { status: 200 }));
+        }
+
+        throw new Error(`Unexpected request: ${init?.method ?? 'GET'} ${url}`);
+      }),
+    );
+
+    const result = await vercelProviderPack.apply(
+      {
+        ...createTask('set-preview-env-var'),
+        params: {
+          projectId: 'prj_456',
+          key: 'DATABASE_URL',
+        },
+      },
+      createExecutionContext(),
+    );
+
+    expect(result.success).toBe(true);
+    expect(
+      requests.some(
+        (request) =>
+          request.url.includes('/v10/projects/prj_456/env') &&
+          request.method === 'POST' &&
+          (request.body?.includes('"value":"postgres://preview-branch"') ?? false),
+      ),
+    ).toBe(true);
+  });
+
+  it('waits for branch preview deployments using the branch preview task output', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL, init?: RequestInit) => {
+        const url = input.toString();
+
+        if (url.includes('/v13/deployments/dpl_branch_123') && init?.method === 'GET') {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: 'dpl_branch_123',
+                url: 'menugen-branch-preview.vercel.app',
+                readyState: 'READY',
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+
+        throw new Error(`Unexpected request: ${init?.method ?? 'GET'} ${url}`);
+      }),
+    );
+
+    const baseContext = createExecutionContext();
+    const result = await vercelProviderPack.apply(
+      {
+        ...createTask('wait-for-ready'),
+        params: {},
+      },
+      {
+        ...baseContext,
+        getOutput(taskId: string, key: string): unknown {
+          if (taskId === 'vercel-deploy-preview' && key === 'deploymentId') {
+            return undefined;
+          }
+
+          return baseContext.getOutput(taskId, key);
+        },
+      },
+    );
+
+    expect(result.outputs.deploymentId).toBe('dpl_branch_123');
+    expect(result.outputs.previewUrl).toBe('https://menugen-branch-preview.vercel.app');
+  });
 });
 
 function createTask(action: Task['action']): Task {
@@ -236,6 +324,10 @@ function createExecutionContext(): ExecutionContext {
           projectId: 'prj_456',
           projectName: 'menugen',
         },
+        'vercel-deploy-branch-preview': {
+          deploymentId: 'dpl_branch_123',
+          previewUrl: 'https://menugen-branch-preview.vercel.app',
+        },
         'github-create-repo': {
           repoId: 987,
           repoFullName: 'octocat/menugen',
@@ -247,6 +339,9 @@ function createExecutionContext(): ExecutionContext {
         },
         'neon-capture-database-url': {
           databaseUrl: 'postgres://example',
+        },
+        'neon-create-preview-branch': {
+          databaseUrl: 'postgres://preview-branch',
         },
         'clerk-capture-secret-key': {
           secretKey: 'clerk_secret',

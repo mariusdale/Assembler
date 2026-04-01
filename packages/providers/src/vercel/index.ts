@@ -262,8 +262,10 @@ export const vercelProviderPack: ProviderPack = {
       }
       case 'wait-for-ready': {
         const deploymentId = asString(
-          ctx.getOutput('vercel-deploy-preview', 'deploymentId'),
-          'vercel-deploy-preview.deploymentId',
+          task.params.deploymentId ??
+            ctx.getOutput('vercel-deploy-preview', 'deploymentId') ??
+            ctx.getOutput('vercel-deploy-branch-preview', 'deploymentId'),
+          'vercel deploymentId',
         );
         const timeoutMs = asOptionalNumber(task.params.timeoutMs) ?? 120_000;
         const pollIntervalMs = asOptionalNumber(task.params.pollIntervalMs) ?? 4_000;
@@ -373,7 +375,7 @@ export const vercelProviderPack: ProviderPack = {
           'task.params.projectId',
         );
         const key = asString(task.params.key, 'task.params.key');
-        const value = asString(task.params.value, 'task.params.value');
+        const value = resolvePreviewEnvVarValue(task, ctx, key);
 
         await client.createProjectEnv(projectId, {
           key,
@@ -715,6 +717,26 @@ function getOptionalProjectId(ctx: ExecutionContext): unknown {
     ctx.getOutput('vercel-link-repository', 'projectId') ??
     ctx.getOutput('vercel-create-project', 'projectId')
   );
+}
+
+function resolvePreviewEnvVarValue(
+  task: Task,
+  ctx: ExecutionContext,
+  key: string,
+): string {
+  const explicitValue = asOptionalString(task.params.value);
+  if (explicitValue) {
+    return explicitValue;
+  }
+
+  if (key === 'DATABASE_URL') {
+    return asString(
+      ctx.getOutput('neon-create-preview-branch', 'databaseUrl'),
+      'neon-create-preview-branch.databaseUrl',
+    );
+  }
+
+  throw new Error(`task.params.value must be a non-empty string for preview env var "${key}".`);
 }
 
 async function createOrResolveLinkedProject(

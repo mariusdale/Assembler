@@ -8,19 +8,18 @@ interface ConfirmPromptProps {
 }
 
 export function ConfirmPrompt({ message, onConfirm, onCancel }: ConfirmPromptProps) {
-  useInput((input) => {
-    if (input === 'y' || input === 'Y') {
+  useInput((input, key) => {
+    if (input === 'y' || input === 'Y' || key.return) {
       onConfirm();
-    } else if (input === 'n' || input === 'N') {
+    } else if (input === 'n' || input === 'N' || key.escape) {
       onCancel();
     }
   });
 
   return (
-    <Box>
-      <Text>
-        {message} <Text dimColor>(y/n)</Text>
-      </Text>
+    <Box flexDirection="column">
+      <Text>{message}</Text>
+      <Text dimColor>Press enter or y to continue. Press esc or n to cancel.</Text>
     </Box>
   );
 }

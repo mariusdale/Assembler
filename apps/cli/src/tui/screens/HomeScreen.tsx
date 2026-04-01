@@ -51,6 +51,7 @@ export function HomeScreen({
   return (
     <Box flexDirection="column">
       <Text bold>What would you like to do?</Text>
+      <Text dimColor>Launch, inspect, and troubleshoot your app without leaving the terminal.</Text>
       <Box marginTop={1}>
         <SelectInput items={selectItems} onSelect={handleSelect} />
       </Box>

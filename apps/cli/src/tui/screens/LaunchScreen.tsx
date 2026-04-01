@@ -1,17 +1,40 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Text, useApp } from 'ink';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Box, Text, useInput } from 'ink';
 import Spinner from 'ink-spinner';
 import type { ProjectScan, RunPlan, Task } from '@devassemble/types';
-import { useCliApp } from '../context.js';
-import { useNavigation } from '../hooks/use-navigation.js';
-import { useEventStream } from '../hooks/use-event-stream.js';
-import { TaskProgressList, type FailureAction } from '../components/TaskProgressList.js';
-import { ErrorBox } from '../components/ErrorBox.js';
-import { ConfirmPrompt } from '../components/ConfirmPrompt.js';
-import type { TuiState, TuiAction } from '../types.js';
-import type { PreflightCheckResults } from '../../app.js';
 
-type LaunchPhase = 'scan' | 'preflight' | 'plan' | 'confirm' | 'execute' | 'execute-paused' | 'complete' | 'error';
+import type { PreflightCheckResults } from '../../app.js';
+import { ConfirmPrompt } from '../components/ConfirmPrompt.js';
+import { ErrorBox } from '../components/ErrorBox.js';
+import { useCliApp } from '../context.js';
+import { useEventStream } from '../hooks/use-event-stream.js';
+import { useNavigation } from '../hooks/use-navigation.js';
+import { useRunView } from '../hooks/use-run-view.js';
+import {
+  deriveRunOutcomeSummary,
+  getExpectedOutputs,
+  getLaunchReadiness,
+  getLaunchWarnings,
+  getProviderReadiness,
+  groupTasksForPlan,
+  type DisplayTaskStatus,
+  type ExecutionTaskView,
+  type ExecutionView,
+  type LaunchReadinessState,
+  type PlanTaskGroup,
+  type ProviderReadinessItem,
+  type RunOutcomeSummary,
+} from '../run-insights.js';
+import type { TuiAction, TuiState } from '../types.js';
+
+type LaunchPhase =
+  | 'scan'
+  | 'preflight'
+  | 'plan'
+  | 'execute'
+  | 'execute-paused'
+  | 'complete'
+  | 'error';
 
 const FRAMEWORK_LABELS: Record<string, string> = {
   nextjs: 'Next.js',
@@ -21,26 +44,35 @@ const FRAMEWORK_LABELS: Record<string, string> = {
   unknown: 'Unknown',
 };
 
-const PROVIDER_LABELS: Record<string, string> = {
-  neon: 'Database: Neon',
-  vercel: 'Hosting: Vercel',
-  clerk: 'Auth: Clerk',
-  stripe: 'Payments: Stripe',
-  cloudflare: 'DNS: Cloudflare',
-  resend: 'Email: Resend',
-  sentry: 'Error Tracking: Sentry',
-  posthog: 'Analytics: PostHog',
+const READINESS_LABELS: Record<LaunchReadinessState, string> = {
+  ready: 'Ready',
+  ready_with_warnings: 'Ready With Warnings',
+  blocked: 'Blocked',
+};
+
+const READINESS_COLORS: Record<LaunchReadinessState, string> = {
+  ready: 'green',
+  ready_with_warnings: 'yellow',
+  blocked: 'red',
+};
+
+const STATUS_COLORS: Record<DisplayTaskStatus, string> = {
+  pending: 'gray',
+  running: 'cyan',
+  retrying: 'yellow',
+  success: 'green',
+  warning: 'yellow',
+  failed: 'red',
+  skipped: 'yellow',
 };
 
 export function LaunchScreen({
-  state,
   dispatch,
 }: {
   state: TuiState;
   dispatch: React.Dispatch<TuiAction>;
 }) {
   const app = useCliApp();
-  const { goBack } = useNavigation(dispatch, { disabled: false });
   const [phase, setPhase] = useState<LaunchPhase>('scan');
   const [projectScan, setProjectScan] = useState<ProjectScan | null>(null);
   const [runPlan, setRunPlan] = useState<RunPlan | null>(null);
@@ -48,50 +80,64 @@ export function LaunchScreen({
   const [executedPlan, setExecutedPlan] = useState<RunPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
-
   const events = useEventStream(runId);
+  const executionView = useRunView(runPlan, events);
 
-  // Update task statuses from events during execution
+  const navigationEnabled = phase === 'plan' || phase === 'complete' || phase === 'error';
+  const { goBack } = useNavigation(dispatch, { disabled: !navigationEnabled });
+
   useEffect(() => {
-    if (!runPlan || phase !== 'execute') return;
+    if (!runPlan || (phase !== 'execute' && phase !== 'execute-paused')) {
+      return;
+    }
 
-    const statusEvents = events.filter((e) => e.type === 'task.status_changed');
-    if (statusEvents.length === 0) return;
+    const statusEvents = events.filter((event) => event.type === 'task.status_changed');
+    if (statusEvents.length === 0) {
+      return;
+    }
 
     const updatedTasks = runPlan.tasks.map((task) => {
-      const latestEvent = [...statusEvents]
-        .reverse()
-        .find((e) => e.taskId === task.id);
+      const latestEvent = [...statusEvents].reverse().find((event) => event.taskId === task.id);
       if (latestEvent?.metadata?.status) {
         return { ...task, status: latestEvent.metadata.status as Task['status'] };
       }
       return task;
     });
 
-    setRunPlan({ ...runPlan, tasks: updatedTasks });
-  }, [events]);
+    setRunPlan((current) =>
+      current ? { ...current, tasks: updatedTasks } : current,
+    );
+  }, [events, phase, runPlan]);
 
-  // Phase: Scan
   useEffect(() => {
-    if (phase !== 'scan') return;
+    if (phase !== 'scan') {
+      return;
+    }
+
     let cancelled = false;
 
     (async () => {
       try {
         const scan = await app.scan();
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         setProjectScan(scan);
         dispatch({ type: 'setProjectScan', scan });
 
         const plan = app.createPlan(scan);
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         setRunPlan(plan);
         setRunId(plan.id);
         dispatch({ type: 'setRunPlan', plan });
         setPhase('preflight');
-      } catch (err) {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : String(err));
+      } catch (scanError) {
+        if (cancelled) {
+          return;
+        }
+        setError(scanError instanceof Error ? scanError.message : String(scanError));
         setPhase('error');
       }
     })();
@@ -99,22 +145,28 @@ export function LaunchScreen({
     return () => {
       cancelled = true;
     };
-  }, [phase]);
+  }, [app, dispatch, phase]);
 
-  // Phase: Preflight
   useEffect(() => {
-    if (phase !== 'preflight' || !runPlan) return;
+    if (phase !== 'preflight' || !runPlan) {
+      return;
+    }
+
     let cancelled = false;
 
     (async () => {
       try {
         const results = await app.preflight(runPlan);
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         setPreflightResults(results);
         setPhase('plan');
-      } catch (err) {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : String(err));
+      } catch (preflightError) {
+        if (cancelled) {
+          return;
+        }
+        setError(preflightError instanceof Error ? preflightError.message : String(preflightError));
         setPhase('error');
       }
     })();
@@ -122,130 +174,121 @@ export function LaunchScreen({
     return () => {
       cancelled = true;
     };
-  }, [phase, runPlan]);
+  }, [app, phase, runPlan]);
 
   const handleConfirm = useCallback(async () => {
-    if (!runPlan) return;
-    setPhase('execute');
+    if (!runPlan) {
+      return;
+    }
 
+    setPhase('execute');
     try {
       const result = await app.executePlan(runPlan);
+      setRunPlan(result);
+      if (result.tasks.some((task) => task.status === 'failed')) {
+        setPhase('execute-paused');
+        return;
+      }
       setExecutedPlan(result);
       setPhase('complete');
-    } catch (err) {
-      // Check if a task failed — if so, pause for user decision
-      const failedTask = runPlan.tasks.find((t) => t.status === 'failed');
-      if (failedTask) {
-        setPhase('execute-paused');
-      } else {
-        setError(err instanceof Error ? err.message : String(err));
-        setPhase('error');
-      }
+    } catch (executionError) {
+      setError(executionError instanceof Error ? executionError.message : String(executionError));
+      setPhase('error');
     }
   }, [app, runPlan]);
 
-  const handleFailureAction = useCallback(async (taskId: string, action: FailureAction) => {
-    if (!runPlan) return;
-
-    if (action === 'abort') {
-      setError('Launch aborted by user.');
-      setPhase('error');
-      return;
-    }
-
-    if (action === 'skip') {
-      const updatedTasks = runPlan.tasks.map((t) =>
-        t.id === taskId ? { ...t, status: 'skipped' as const } : t,
-      );
-      setRunPlan({ ...runPlan, tasks: updatedTasks });
-      setPhase('execute');
-      try {
-        const result = await app.executePlan({ ...runPlan, tasks: updatedTasks });
-        setExecutedPlan(result);
-        setPhase('complete');
-      } catch (err) {
-        const failedTask = updatedTasks.find((t) => t.status === 'failed');
-        if (failedTask) {
-          setPhase('execute-paused');
-        } else {
-          setError(err instanceof Error ? err.message : String(err));
-          setPhase('error');
-        }
+  const handleFailureAction = useCallback(
+    async (taskId: string, action: 'retry' | 'skip' | 'abort') => {
+      if (!runPlan) {
+        return;
       }
-      return;
-    }
 
-    if (action === 'retry') {
-      const updatedTasks = runPlan.tasks.map((t) => {
-        if (t.id !== taskId) return t;
-        const { error: _err, ...rest } = t;
+      if (action === 'abort') {
+        setError('Launch aborted by user.');
+        setPhase('error');
+        return;
+      }
+
+      const updatedTasks = runPlan.tasks.map((task) => {
+        if (task.id !== taskId) {
+          return task;
+        }
+        if (action === 'skip') {
+          return { ...task, status: 'skipped' as const };
+        }
+
+        const { error: _removedError, ...rest } = task;
         return { ...rest, status: 'pending' as const };
       });
+
       setRunPlan({ ...runPlan, tasks: updatedTasks });
       setPhase('execute');
+
       try {
         const result = await app.executePlan({ ...runPlan, tasks: updatedTasks });
+        setRunPlan(result);
+        if (result.tasks.some((task) => task.status === 'failed')) {
+          setPhase('execute-paused');
+          return;
+        }
         setExecutedPlan(result);
         setPhase('complete');
-      } catch (err) {
-        const failedTask = updatedTasks.find((t) => t.status === 'failed');
-        if (failedTask) {
-          setPhase('execute-paused');
-        } else {
-          setError(err instanceof Error ? err.message : String(err));
-          setPhase('error');
-        }
+      } catch (executionError) {
+        setError(executionError instanceof Error ? executionError.message : String(executionError));
+        setPhase('error');
       }
-    }
-  }, [app, runPlan]);
+    },
+    [app, runPlan],
+  );
 
-  const handleCancel = useCallback(() => {
-    goBack();
-  }, [goBack]);
+  const readiness =
+    projectScan && preflightResults
+      ? getLaunchReadiness(projectScan, preflightResults)
+      : 'blocked';
 
   return (
     <Box flexDirection="column">
       <Text bold>Launch</Text>
       <Box marginTop={1} flexDirection="column">
-        {phase === 'scan' && <ScanPhase />}
-        {phase === 'preflight' && <PreflightPhase />}
-        {phase === 'plan' && runPlan && (
-          <PlanPhase
-            projectScan={projectScan}
-            runPlan={runPlan}
-            preflightResults={preflightResults}
-          />
-        )}
-        {phase === 'plan' && runPlan && (
-          <Box marginTop={1}>
-            <ConfirmPrompt
-              message="Proceed with launch?"
-              onConfirm={handleConfirm}
-              onCancel={handleCancel}
+        {phase === 'scan' && <LoadingPhase message="Scanning project and identifying required providers..." />}
+        {phase === 'preflight' && <LoadingPhase message="Validating credentials and launch readiness..." />}
+        {phase === 'plan' && projectScan && runPlan && preflightResults && (
+          <Box flexDirection="column">
+            <LaunchBriefing
+              projectScan={projectScan}
+              runPlan={runPlan}
+              preflightResults={preflightResults}
+              readiness={readiness}
             />
+            <Box marginTop={1}>
+              {readiness === 'blocked' ? (
+                <Text dimColor>Resolve the blocking items above, then press esc to go back.</Text>
+              ) : (
+                <ConfirmPrompt
+                  message="Proceed with launch?"
+                  onConfirm={handleConfirm}
+                  onCancel={goBack}
+                />
+              )}
+            </Box>
           </Box>
         )}
-        {phase === 'confirm' && (
-          <ConfirmPrompt
-            message="Proceed with launch?"
-            onConfirm={handleConfirm}
-            onCancel={handleCancel}
+        {(phase === 'execute' || phase === 'execute-paused') && runPlan && executionView && (
+          <ExecutePhase
+            runPlan={runPlan}
+            view={executionView}
+            paused={phase === 'execute-paused'}
+            onFailureAction={handleFailureAction}
           />
         )}
-        {phase === 'execute' && runPlan && (
-          <ExecutePhase tasks={runPlan.tasks} />
-        )}
-        {phase === 'execute-paused' && runPlan && (
-          <ExecutePhase tasks={runPlan.tasks} onFailureAction={handleFailureAction} />
-        )}
         {phase === 'complete' && executedPlan && (
-          <CompletePhase plan={executedPlan} goBack={goBack} />
+          <CompletionPhase summary={deriveRunOutcomeSummary(executedPlan, events)} />
         )}
         {phase === 'error' && error && (
           <Box flexDirection="column">
             <ErrorBox message={error} />
             <Box marginTop={1}>
-              <Text dimColor>Press esc to go back</Text>
+              <Text dimColor>Press esc to go back.</Text>
             </Box>
           </Box>
         )}
@@ -254,142 +297,392 @@ export function LaunchScreen({
   );
 }
 
-function ScanPhase() {
+function LoadingPhase({ message }: { message: string }) {
   return (
     <Box>
       <Text color="cyan">
         <Spinner type="dots" />
       </Text>
-      <Text> Scanning project...</Text>
+      <Text> {message}</Text>
     </Box>
   );
 }
 
-function PreflightPhase() {
-  return (
-    <Box>
-      <Text color="cyan">
-        <Spinner type="dots" />
-      </Text>
-      <Text> Checking credentials...</Text>
-    </Box>
-  );
-}
-
-function PlanPhase({
+function LaunchBriefing({
   projectScan,
   runPlan,
   preflightResults,
+  readiness,
 }: {
-  projectScan: ProjectScan | null;
+  projectScan: ProjectScan;
   runPlan: RunPlan;
-  preflightResults: PreflightCheckResults | null;
+  preflightResults: PreflightCheckResults;
+  readiness: LaunchReadinessState;
 }) {
+  const providerReadiness = getProviderReadiness(projectScan, runPlan, preflightResults);
+  const expectedOutputs = getExpectedOutputs(runPlan);
+  const warnings = getLaunchWarnings(projectScan);
+  const planGroups = groupTasksForPlan(runPlan.tasks);
+  const homeDir = process.env.HOME ?? '';
+
   return (
     <Box flexDirection="column">
-      {projectScan ? (
-        <Box flexDirection="column" marginBottom={1}>
-          <Text color="green">
-            ✓ {FRAMEWORK_LABELS[projectScan.framework] ?? projectScan.framework} app detected
-          </Text>
-          {projectScan.detectedProviders.map((dp) => (
-            <Text key={dp.provider} dimColor>
-              {'  '}• {PROVIDER_LABELS[dp.provider] ?? dp.provider}
-            </Text>
-          ))}
-        </Box>
-      ) : null}
-
-      {preflightResults ? (
-        <Box flexDirection="column" marginBottom={1}>
-          {[...preflightResults.results.entries()].map(([provider, result]) => (
-            <Text key={provider}>
-              {result.valid ? (
-                <Text color="green">✓</Text>
-              ) : (
-                <Text color="red">✗</Text>
-              )}
-              {' '}{provider}
-            </Text>
-          ))}
-        </Box>
-      ) : null}
-
-      <Text bold>Execution Plan:</Text>
-      {runPlan.tasks.map((task, i) => (
-        <Text key={task.id}>
-          {'  '}{i + 1}. {task.name}
-          <Text dimColor>
-            {' '}[{task.requiresApproval ? 'approval' : 'auto'}]
-          </Text>
+      <InfoPanel title="Launch Readiness">
+        <Text color={READINESS_COLORS[readiness]} bold>
+          {READINESS_LABELS[readiness]}
         </Text>
-      ))}
+        <Text dimColor>
+          {readiness === 'blocked'
+            ? 'Resolve credentials or lockfile issues before this launch can continue.'
+            : readiness === 'ready_with_warnings'
+              ? 'This project can launch, but there are caveats worth reading first.'
+              : 'This project is ready to launch from the terminal.'}
+        </Text>
+      </InfoPanel>
 
-      <Box marginTop={1}>
-        {runPlan.estimatedCostUsd === 0 ? (
-          <Text dimColor>Estimated cost: $0.00 (all free tier)</Text>
-        ) : (
-          <Text dimColor>Estimated cost: ${runPlan.estimatedCostUsd.toFixed(2)}</Text>
-        )}
+      <InfoPanel title="Project">
+        <KeyValue label="Framework" value={FRAMEWORK_LABELS[projectScan.framework] ?? projectScan.framework} />
+        <KeyValue label="Directory" value={projectScan.directory.replace(homeDir, '~')} />
+        <KeyValue
+          label="Git remote"
+          value={projectScan.gitRemoteUrl ?? 'No remote configured - DevAssemble will create one'}
+        />
+        <KeyValue
+          label="Lockfile"
+          value={describeLockfile(projectScan)}
+          color={projectScan.lockfileCheck.lockfileExists && projectScan.lockfileCheck.inSync ? 'green' : 'red'}
+        />
+      </InfoPanel>
+
+      <InfoPanel title="Provider Readiness">
+        {providerReadiness.map((provider) => (
+          <ProviderRow key={provider.provider} provider={provider} />
+        ))}
+      </InfoPanel>
+
+      <InfoPanel title="Execution Plan">
+        {planGroups.map((group) => (
+          <PlanGroupRow
+            key={group.key}
+            group={group}
+            {...(group.key === 'infra' ? { estimatedCostUsd: runPlan.estimatedCostUsd } : {})}
+          />
+        ))}
+      </InfoPanel>
+
+      <InfoPanel title="Expected Outputs">
+        {expectedOutputs.map((output) => (
+          <Box key={output.label} flexDirection="column" marginBottom={1}>
+            <Text bold>{output.label}</Text>
+            <Text dimColor>{output.detail}</Text>
+          </Box>
+        ))}
+      </InfoPanel>
+
+      <InfoPanel title="Warnings">
+        {warnings.map((warning) => (
+          <Text key={warning.message} color={warning.level === 'blocking' ? 'red' : 'yellow'}>
+            {warning.level === 'blocking' ? '✗' : '•'} {warning.message}
+          </Text>
+        ))}
+      </InfoPanel>
+
+      <Box marginTop={1} flexDirection="column">
+        <Text dimColor>Launch usually takes 1-3 minutes depending on provider API latency.</Text>
+        <Text dimColor>Press enter to start the launch. Press esc to go back without creating resources.</Text>
       </Box>
     </Box>
   );
 }
 
 function ExecutePhase({
-  tasks,
+  runPlan,
+  view,
+  paused,
   onFailureAction,
 }: {
-  tasks: Task[];
-  onFailureAction?: ((taskId: string, action: FailureAction) => void) | undefined;
+  runPlan: RunPlan;
+  view: ExecutionView;
+  paused: boolean;
+  onFailureAction: (taskId: string, action: 'retry' | 'skip' | 'abort') => void;
 }) {
   return (
     <Box flexDirection="column">
-      <Text bold>Executing...</Text>
-      <Box marginTop={1}>
-        <TaskProgressList tasks={tasks} onFailureAction={onFailureAction} />
+      <InfoPanel title="Execution">
+        <Text>
+          <Text bold>Run</Text> <Text color="cyan">{runPlan.id.slice(0, 8)}</Text>
+          <Text dimColor> • {view.currentPhaseLabel}</Text>
+          <Text dimColor> • {view.completedCount}/{view.totalCount} complete</Text>
+          <Text dimColor> • {view.elapsedLabel} elapsed</Text>
+        </Text>
+        <Text>
+          <Text bold>Current task:</Text> {view.currentTaskLabel}
+        </Text>
+      </InfoPanel>
+
+      <InfoPanel title="Tasks">
+        {view.taskGroups.map((group) => (
+          <Box key={group.key} flexDirection="column" marginBottom={1}>
+            <Text bold>{group.label}</Text>
+            {group.tasks.map((task) => (
+              <ExecutionTaskRow key={task.id} task={task} />
+            ))}
+          </Box>
+        ))}
+      </InfoPanel>
+
+      <InfoPanel title="Recent Activity">
+        {view.timeline.map((entry) => (
+          <Text key={entry.id} color={entry.level === 'error' ? 'red' : entry.level === 'warn' ? 'yellow' : 'white'}>
+            [{entry.timestampLabel}] {entry.message}
+          </Text>
+        ))}
+      </InfoPanel>
+
+      {paused && view.failure ? (
+        <InfoPanel title="Failure Recovery" borderColor="red">
+          <Text color="red" bold>{view.failure.taskName}</Text>
+          <Text color="red">{view.failure.reason}</Text>
+          {view.failure.remediation ? (
+            <Text dimColor>{view.failure.remediation}</Text>
+          ) : (
+            <Text dimColor>Retry if the failure looks transient, or skip only if you understand the downstream impact.</Text>
+          )}
+          <Box marginTop={1} flexDirection="column">
+            <Text>
+              <Text bold color="yellow">[r]</Text>etry
+              <Text>  </Text>
+              <Text bold color="yellow">[s]</Text>kip
+              <Text>  </Text>
+              <Text bold color="yellow">[a]</Text>bort
+            </Text>
+          </Box>
+          <FailureKeyHandler failureTaskId={view.failure.taskId} onFailureAction={onFailureAction} />
+        </InfoPanel>
+      ) : (
+        <Text dimColor>Press esc is disabled while the launch is running so the console can stay attached to this run.</Text>
+      )}
+    </Box>
+  );
+}
+
+function CompletionPhase({ summary }: { summary: RunOutcomeSummary }) {
+  const color =
+    summary.kind === 'failed' ? 'red' : summary.kind === 'success_with_warnings' ? 'yellow' : 'green';
+
+  return (
+    <Box flexDirection="column">
+      <InfoPanel title="Launch Summary" borderColor={color}>
+        <Text bold color={color}>{summary.headline}</Text>
+        {summary.previewUrl ? (
+          <Text>
+            Preview: <Text color="cyan">{summary.previewUrl}</Text>
+          </Text>
+        ) : null}
+        {summary.repoUrl ? (
+          <Text>
+            Repo: <Text color="cyan">{summary.repoUrl}</Text>
+          </Text>
+        ) : null}
+      </InfoPanel>
+
+      {summary.resources.length > 0 ? (
+        <InfoPanel title="Created Resources">
+          {summary.resources.map((resource) => (
+            <Text key={resource}>• {resource}</Text>
+          ))}
+        </InfoPanel>
+      ) : null}
+
+      {summary.verification.length > 0 ? (
+        <InfoPanel title="Verification">
+          {summary.verification.map((item) => (
+            <Text key={item}>• {item}</Text>
+          ))}
+        </InfoPanel>
+      ) : null}
+
+      {summary.warnings.length > 0 ? (
+        <InfoPanel title="Warnings" borderColor="yellow">
+          {summary.warnings.map((warning) => (
+            <Text key={warning} color="yellow">• {warning}</Text>
+          ))}
+        </InfoPanel>
+      ) : null}
+
+      {summary.firstFailure ? (
+        <InfoPanel title="Failure Details" borderColor="red">
+          <Text color="red" bold>{summary.firstFailure.taskName}</Text>
+          <Text color="red">{summary.firstFailure.reason}</Text>
+          {summary.firstFailure.remediation ? (
+            <Text dimColor>{summary.firstFailure.remediation}</Text>
+          ) : null}
+        </InfoPanel>
+      ) : null}
+
+      {summary.nextSteps.length > 0 ? (
+        <InfoPanel title="Next Steps">
+          {summary.nextSteps.map((step) => (
+            <Text key={step}>• {step}</Text>
+          ))}
+        </InfoPanel>
+      ) : null}
+
+      <Text dimColor>Press esc to return to the menu.</Text>
+    </Box>
+  );
+}
+
+function ProviderRow({ provider }: { provider: ProviderReadinessItem }) {
+  const color = provider.valid ? 'green' : 'red';
+
+  return (
+    <Box flexDirection="column" marginBottom={1}>
+      <Text color={color}>
+        {provider.valid ? '✓' : '✗'} {provider.label}
+        <Text dimColor>
+          {provider.required ? ' • required' : ' • optional'}
+          {provider.envOnly ? ' • env-only inference' : ''}
+        </Text>
+      </Text>
+      {provider.evidence[0] ? (
+        <Text dimColor>  Evidence: {provider.evidence[0]}</Text>
+      ) : null}
+      {provider.errors.map((error) => (
+        <Box key={`${provider.provider}-${error.code}`} flexDirection="column">
+          <Text color="red">  {error.message}</Text>
+          <Text dimColor>  → {error.remediation}</Text>
+          {error.url ? <Text dimColor>    {error.url}</Text> : null}
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+function PlanGroupRow({
+  group,
+  estimatedCostUsd,
+}: {
+  group: PlanTaskGroup;
+  estimatedCostUsd?: number;
+}) {
+  return (
+    <Box flexDirection="column" marginBottom={1}>
+      <Text bold>
+        {group.label}
+        {estimatedCostUsd !== undefined ? (
+          <Text dimColor>
+            {' '}• approx. ${estimatedCostUsd.toFixed(2)}
+            {estimatedCostUsd === 0 ? ' (free tier)' : ''}
+          </Text>
+        ) : null}
+      </Text>
+      {group.tasks.map((task) => (
+        <Text key={task.id} dimColor>
+          • {task.name}
+        </Text>
+      ))}
+    </Box>
+  );
+}
+
+function ExecutionTaskRow({ task }: { task: ExecutionTaskView }) {
+  return (
+    <Box flexDirection="column" marginLeft={2}>
+      <Text color={STATUS_COLORS[task.status]}>
+        {statusSymbol(task.status)} {task.name}
+        {task.attemptCount > 0 ? <Text dimColor>{` • attempt ${task.attemptCount + 1}`}</Text> : null}
+        {task.resourceLabel ? <Text dimColor>{` • ${task.resourceLabel}`}</Text> : null}
+        {task.lastUpdatedAt ? <Text dimColor>{` • ${task.lastUpdatedAt}`}</Text> : null}
+      </Text>
+      {task.error ? <Text color="red" dimColor>  {task.error}</Text> : null}
+    </Box>
+  );
+}
+
+function FailureKeyHandler({
+  failureTaskId,
+  onFailureAction,
+}: {
+  failureTaskId: string;
+  onFailureAction: (taskId: string, action: 'retry' | 'skip' | 'abort') => void;
+}) {
+  useInput((input) => {
+    if (input === 'r' || input === 'R') {
+      onFailureAction(failureTaskId, 'retry');
+    } else if (input === 's' || input === 'S') {
+      onFailureAction(failureTaskId, 'skip');
+    } else if (input === 'a' || input === 'A') {
+      onFailureAction(failureTaskId, 'abort');
+    }
+  });
+
+  return null;
+}
+
+function InfoPanel({
+  title,
+  children,
+  borderColor = 'cyan',
+}: {
+  title: string;
+  children: React.ReactNode;
+  borderColor?: string;
+}) {
+  return (
+    <Box flexDirection="column" borderStyle="round" borderColor={borderColor} paddingX={1} marginBottom={1}>
+      <Text bold>{title}</Text>
+      <Box flexDirection="column" marginTop={1}>
+        {children}
       </Box>
     </Box>
   );
 }
 
-function CompletePhase({ plan, goBack }: { plan: RunPlan; goBack: () => void }) {
-  const allSuccess = plan.tasks.every((t) => t.status === 'success');
-  const vercelTask = plan.tasks.find(
-    (t) => t.provider === 'vercel' && (t.action === 'wait-for-ready' || t.action === 'deploy'),
-  );
-  const previewUrl = vercelTask?.outputs.previewUrl as string | undefined;
-  const githubTask = plan.tasks.find(
-    (t) => t.provider === 'github' && t.status === 'success',
-  );
-  const repoUrl = githubTask?.outputs.htmlUrl as string | undefined;
-
+function KeyValue({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string;
+  color?: string;
+}) {
   return (
-    <Box flexDirection="column">
-      {allSuccess ? (
-        <Box flexDirection="column" borderStyle="round" borderColor="green" paddingX={2} paddingY={1}>
-          <Text bold color="green">✓ Launch complete!</Text>
-          {previewUrl ? (
-            <Text>
-              {'  '}Preview: <Text color="cyan">{previewUrl}</Text>
-            </Text>
-          ) : null}
-          {repoUrl ? (
-            <Text>
-              {'  '}Repo:    <Text color="cyan">{repoUrl}</Text>
-            </Text>
-          ) : null}
-        </Box>
-      ) : (
-        <Box flexDirection="column">
-          <Text bold color="yellow">Launch completed with errors</Text>
-          <TaskProgressList tasks={plan.tasks} />
-        </Box>
-      )}
-
-      <Box marginTop={1}>
-        <Text dimColor>Press esc to return to menu</Text>
-      </Box>
-    </Box>
+    <Text>
+      <Text bold>{label}: </Text>
+      {color ? <Text color={color}>{value}</Text> : <Text>{value}</Text>}
+    </Text>
   );
+}
+
+function describeLockfile(projectScan: ProjectScan): string {
+  const lockfile = projectScan.lockfileCheck;
+  if (!lockfile.lockfileExists) {
+    return 'Missing lockfile';
+  }
+  if (!lockfile.inSync) {
+    return `${lockfile.packageManager ?? 'Package manager'} lockfile out of sync`;
+  }
+  return `${lockfile.packageManager ?? 'Package manager'} lockfile ready`;
+}
+
+function statusSymbol(status: DisplayTaskStatus): string {
+  switch (status) {
+    case 'running':
+      return '●';
+    case 'retrying':
+      return '↻';
+    case 'success':
+      return '✓';
+    case 'warning':
+      return '!';
+    case 'failed':
+      return '✗';
+    case 'skipped':
+      return '○';
+    case 'pending':
+    default:
+      return '·';
+  }
 }

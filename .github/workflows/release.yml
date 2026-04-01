@@ -47,7 +47,12 @@ jobs:
         run: pnpm --filter devassemble run bundle
 
       - name: Publish to npm
-        run: pnpm --filter devassemble publish --no-git-checks --access public
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+            pnpm --filter devassemble publish --no-git-checks --access public --tag beta
+          else
+            pnpm --filter devassemble publish --no-git-checks --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -55,3 +60,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

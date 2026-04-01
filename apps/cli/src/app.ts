@@ -46,6 +46,7 @@ export interface CliApp {
   init(prompt: string): Promise<RunPlan>;
   execute(runId?: string): Promise<RunPlan>;
   status(runId?: string): Promise<RunPlan>;
+  listRuns(): Promise<RunPlan[]>;
   events(runId?: string): Promise<RunEvent[]>;
   resume(runId: string): Promise<RunPlan>;
   rollback(runId: string): Promise<RunPlan>;
@@ -127,7 +128,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       return runPlan;
     },
     preflight: async (runPlan: RunPlan): Promise<PreflightCheckResults> => {
-      ensureLiveCredentials(runPlan, stateStore);
       return runPreflightChecks(runPlan, stateStore, providerRegistry);
     },
     executePlan: async (runPlan: RunPlan): Promise<RunPlan> => {
@@ -142,8 +142,10 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       };
 
       stateStore.saveRun(runPlan);
-      ensureLiveCredentials(runPlan, stateStore);
       const preflightResults = await runPreflightChecks(runPlan, stateStore, providerRegistry);
+      if (!preflightResults.allValid) {
+        throw new Error(formatPreflightFailures(preflightResults));
+      }
 
       const result = await executor.execute({
         runPlan,
@@ -182,7 +184,10 @@ export function createCliApp(cwd = process.cwd()): CliApp {
         throw new Error(`Run "${targetRunId}" was not found.`);
       }
 
-      ensureLiveCredentials(runPlan, stateStore);
+      const preflightResults = await runPreflightChecks(runPlan, stateStore, providerRegistry);
+      if (!preflightResults.allValid) {
+        throw new Error(formatPreflightFailures(preflightResults));
+      }
 
       const result = await executor.execute({
         runPlan:
@@ -199,6 +204,7 @@ export function createCliApp(cwd = process.cwd()): CliApp {
     status: (runId?: string): Promise<RunPlan> => {
       return Promise.resolve(loadRun(stateStore, runId));
     },
+    listRuns: (): Promise<RunPlan[]> => Promise.resolve(stateStore.listRuns()),
     events: (runId?: string): Promise<RunEvent[]> =>
       Promise.resolve(stateStore.listEvents(loadRun(stateStore, runId).id)),
     resume: async (runId: string): Promise<RunPlan> => {
@@ -401,7 +407,7 @@ export function createCliApp(cwd = process.cwd()): CliApp {
           'vercel',
           'set-preview-env-var',
           ['neon-create-preview-branch'],
-          { projectId: vercelProjectId, key: 'DATABASE_URL', value: '__PLACEHOLDER__' },
+          { projectId: vercelProjectId, key: 'DATABASE_URL' },
         ));
       }
 
@@ -879,18 +885,6 @@ function resolveCredentials(
   };
 }
 
-function ensureLiveCredentials(runPlan: RunPlan, stateStore: SqliteRunStateStore): void {
-  const missing = [...new Set(runPlan.tasks.map((task) => task.provider))]
-    .filter((provider) => REQUIRED_LIVE_PROVIDERS.has(provider))
-    .filter((provider) => !stateStore.getCredentialRecord(provider));
-
-  if (missing.length > 0) {
-    throw new Error(
-      `Missing required live credentials for: ${missing.join(', ')}. Add them with "devassemble creds add <provider> ...".`,
-    );
-  }
-}
-
 export interface PreflightCheckResults {
   results: Map<string, import('@devassemble/types').PreflightResult>;
   allValid: boolean;
@@ -912,7 +906,22 @@ export async function runPreflightChecks(
       throw new Error(`Provider "${provider}" is not registered.`);
     }
 
-    const credentials = resolveCredentials(provider, stateStore.getCredentialRecord(provider));
+    const record = stateStore.getCredentialRecord(provider);
+    if (!record) {
+      results.set(provider, {
+        valid: false,
+        errors: [
+          {
+            code: `${provider.toUpperCase()}_TOKEN_MISSING`,
+            message: `No ${provider} credential configured.`,
+            remediation: `Add it with "devassemble creds add ${provider} <token>".`,
+          },
+        ],
+      });
+      continue;
+    }
+
+    const credentials = resolveCredentials(provider, record);
     if (pack.preflight) {
       const result = await pack.preflight(credentials);
       results.set(provider, result);
@@ -936,19 +945,20 @@ export async function runPreflightChecks(
 
   const allValid = [...results.values()].every((r) => r.valid);
 
-  if (!allValid) {
-    const allErrors = [...results.entries()]
-      .filter(([, r]) => !r.valid)
-      .flatMap(([provider, r]) =>
-        r.errors.map(
-          (e) =>
-            `[${provider}] ${e.message}\n  → ${e.remediation}${e.url ? `\n    ${e.url}` : ''}`,
-        ),
-      );
-    throw new Error(`Preflight checks failed:\n\n${allErrors.join('\n\n')}`);
-  }
-
   return { results, allValid };
+}
+
+function formatPreflightFailures(preflightResults: PreflightCheckResults): string {
+  const allErrors = [...preflightResults.results.entries()]
+    .filter(([, result]) => !result.valid)
+    .flatMap(([provider, result]) =>
+      result.errors.map(
+        (error) =>
+          `[${provider}] ${error.message}\n  → ${error.remediation}${error.url ? `\n    ${error.url}` : ''}`,
+      ),
+    );
+
+  return `Preflight checks failed:\n\n${allErrors.join('\n\n')}`;
 }
 
 function resolveVercelProject(

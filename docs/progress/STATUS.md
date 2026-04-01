@@ -1,6 +1,6 @@
 # DevAssemble — Project Status
 
-Last updated: 2026-03-29
+Last updated: 2026-04-01
 
 ## Overview
 
@@ -20,7 +20,12 @@ user's code — all without the user touching any provider dashboard.
 | 6. Teardown, plan, Deployment Protection | Complete | 2026-03-29 |
 | 7. Env sync (`env pull` / `env push`) | Complete | 2026-03-29 |
 | 8. Team onboarding (`devassemble setup`) | Complete | 2026-03-29 |
-| 9. Preview environments (`devassemble preview`) | **Next** | — |
+| 9. Preview environments (`devassemble preview`) | Complete | 2026-03-31 |
+| 10. Custom domains (`devassemble domain add`) | Complete | 2026-03-31 |
+| 16. TUI launch briefing + execution visibility | Complete | 2026-04-01 |
+| 17. TUI post-launch summaries + run history | Complete | 2026-04-01 |
+| 18. Private beta docs + release process | Complete | 2026-04-01 |
+| 19. Private beta outreach assets | Complete | 2026-04-01 |
 
 ## What works
 
@@ -42,6 +47,9 @@ user's code — all without the user touching any provider dashboard.
   captures keys for Vercel env var sync.
 - **CLI UX**: Scan summary, credential check, plan display, confirmation prompt,
   per-task execution display, completion summary box with Deployment Protection warning.
+- **Interactive TUI UX**: Launch briefing with readiness state, provider remediation,
+  phase-grouped execution plan, live task console, recent activity timeline, run
+  history, and post-launch next steps.
 - **`devassemble plan`**: Dry-run command — scan, preflight, and plan without executing.
 - **`devassemble teardown`**: Destroys all resources created by a launch run with
   confirmation and per-resource progress display.
@@ -49,6 +57,10 @@ user's code — all without the user touching any provider dashboard.
 - **`devassemble env push`**: Pushes local `.env.local`/`.env` vars to Vercel.
 - **`devassemble setup`**: Onboards new team members — auto-discovers Vercel project
   from git remote, pulls env vars to `.env.local`.
+- **`devassemble preview` / `preview-teardown`**: Create and remove branch preview
+  environments with Neon branch support when a production database exists.
+- **`devassemble domain add`**: Configure Cloudflare DNS and attach a custom domain
+  to the latest Vercel project.
 
 ## What doesn't work yet
 
@@ -59,16 +71,17 @@ user's code — all without the user touching any provider dashboard.
 - **No CI integration tests** against real providers. Only unit/mock tests exist.
 - **Stripe capture-keys only**: Validates key and syncs to Vercel. No product/price/webhook
   creation (by design — that's user business logic).
-- **No custom domain support**: Cloudflare DNS deferred to a future `devassemble domain` command.
+- **Beta scope is intentionally narrow**: Next.js is the only supported framework for
+  the private beta launch motion.
 
 ## Known issues
 
-1. GitHub Contents API is slow for large projects (one file per request). Need to
-   switch to the Git Trees/Blobs API for repos with many files.
-2. Vercel preview deployments return 401 due to Deployment Protection. Warning
+1. Vercel preview deployments return 401 due to Deployment Protection. Warning
    now shown in completion summary; disabling via API is a future improvement.
-3. Neon eventual consistency: solved with `waitForProjectReady()` polling, but
+2. Neon eventual consistency: solved with `waitForProjectReady()` polling, but
    similar patterns may appear with other providers.
+3. Beta release still depends on manual live smoke tests before each tag. This is
+   documented in the release checklist rather than automated end-to-end CI.
 
 ## Repository structure
 

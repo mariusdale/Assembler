@@ -1,4 +1,9 @@
 # Tests
 
-Cross-package integration tests will be added as the planner and executor milestones land.
+This repo now has:
 
+- cross-package planner/executor integration coverage in `packages/core/tests`
+- provider-focused contract tests in `packages/providers/tests`
+- TUI view-model tests in `apps/cli/tests`
+
+Live provider smoke tests are still manual and are tracked in the private beta release checklist.
