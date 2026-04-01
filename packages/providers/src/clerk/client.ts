@@ -20,7 +20,7 @@ export class ClerkClient {
   }
 
   getInstance(): Promise<ClerkInstanceResponse> {
-    return requestJson<ClerkInstanceResponse>('https://api.clerk.com/v1/instances', {
+    return requestJson<ClerkInstanceResponse>('https://api.clerk.com/v1/instance', {
       method: 'GET',
       headers: this.headers(),
     });

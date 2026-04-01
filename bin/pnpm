@@ -1,3 +1,19 @@
 #!/bin/sh
 
+SELF_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+OLD_IFS=$IFS
+IFS=:
+for dir in $PATH; do
+  if [ "$dir" = "$SELF_DIR" ]; then
+    continue
+  fi
+
+  if [ -x "$dir/pnpm" ]; then
+    IFS=$OLD_IFS
+    exec "$dir/pnpm" "$@"
+  fi
+done
+IFS=$OLD_IFS
+
 COREPACK_HOME="${COREPACK_HOME:-/tmp/corepack}" exec corepack pnpm "$@"

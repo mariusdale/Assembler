@@ -73,19 +73,21 @@ describe('clerk provider pack', () => {
     });
 
     it('passes preflight with valid keys', async () => {
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(() =>
-          Promise.resolve(
-            new Response(
-              JSON.stringify({
-                id: 'ins_test_123',
-                environment_type: 'development',
-              }),
-              { status: 200 },
-            ),
+      const fetchMock = vi.fn(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 'ins_test_123',
+              environment_type: 'development',
+            }),
+            { status: 200 },
           ),
         ),
+      );
+
+      vi.stubGlobal(
+        'fetch',
+        fetchMock,
       );
 
       const result = await clerkProviderPack.preflight!({
@@ -98,6 +100,15 @@ describe('clerk provider pack', () => {
 
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.clerk.com/v1/instance',
+        expect.objectContaining({
+          method: 'GET',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer sk_test_validkey123',
+          }),
+        }),
+      );
     });
   });
 

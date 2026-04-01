@@ -87,7 +87,7 @@ export function LaunchScreen({
   const { goBack } = useNavigation(dispatch, { disabled: !navigationEnabled });
 
   useEffect(() => {
-    if (!runPlan || (phase !== 'execute' && phase !== 'execute-paused')) {
+    if (phase !== 'execute' && phase !== 'execute-paused') {
       return;
     }
 
@@ -96,18 +96,27 @@ export function LaunchScreen({
       return;
     }
 
-    const updatedTasks = runPlan.tasks.map((task) => {
-      const latestEvent = [...statusEvents].reverse().find((event) => event.taskId === task.id);
-      if (latestEvent?.metadata?.status) {
-        return { ...task, status: latestEvent.metadata.status as Task['status'] };
+    setRunPlan((current) => {
+      if (!current) {
+        return current;
       }
-      return task;
-    });
 
-    setRunPlan((current) =>
-      current ? { ...current, tasks: updatedTasks } : current,
-    );
-  }, [events, phase, runPlan]);
+      let changed = false;
+      const updatedTasks = current.tasks.map((task) => {
+        const latestEvent = [...statusEvents].reverse().find((event) => event.taskId === task.id);
+        const nextStatus = latestEvent?.metadata?.status as Task['status'] | undefined;
+
+        if (nextStatus && task.status !== nextStatus) {
+          changed = true;
+          return { ...task, status: nextStatus };
+        }
+
+        return task;
+      });
+
+      return changed ? { ...current, tasks: updatedTasks } : current;
+    });
+  }, [events, phase]);
 
   useEffect(() => {
     if (phase !== 'scan') {

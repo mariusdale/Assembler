@@ -285,6 +285,14 @@ export const githubProviderPack: ProviderPack = {
     try {
       await client.deleteRepository(owner, repoName);
     } catch (error) {
+      if (error instanceof HttpError && error.status === 403) {
+        throw new Error(
+          `Failed to delete ${owner}/${repoName}: GitHub requires admin rights to delete a repository. ` +
+            `If you are using a classic personal access token, include the "delete_repo" scope. ` +
+            `If you are using a fine-grained token, grant repository Administration write access. ` +
+            `You can also delete the repository manually and rerun teardown.`,
+        );
+      }
       if (!(error instanceof HttpError) || error.status !== 404) {
         throw error;
       }
