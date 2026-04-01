@@ -6,7 +6,7 @@
 
 **Launch your Next.js app from the terminal. No dashboard-hopping.**
 
-DevAssemble scans your project, detects what infrastructure it needs, provisions everything, and deploys — all from one command. You build the app; DevAssemble handles the rest.
+DevAssemble is designed to be **TUI-first**. Install it, run `devassemble`, and do the rest from the interactive interface: set up credentials, review the plan, launch, check status, manage previews, sync env vars, and recover from failures without memorizing commands.
 
 ## Private Beta
 
@@ -25,29 +25,27 @@ If you want the beta process, supported scope, and feedback expectations, start 
 - [Outreach assets](docs/outreach.md)
 
 ```
-$ devassemble launch
+$ devassemble
+
+  DevAssemble
+  Launch-ready deployment for Next.js SaaS apps
+
+  > Launch project
+    Credentials
+    Status
+    Preview environments
+    Domains
+    Environment sync
 
   Scanning project...
   ✓ Next.js app detected
-    • Database: Neon
-    • Auth: Clerk
-    • Payments: Stripe
-    • Hosting: Vercel
+  ✓ Launch readiness: ready_with_warnings
 
-  Execution Plan:
-    1. Create GitHub repository
-    2. Push local project code
-    3. Create Neon project
-    4. Capture Clerk API keys
-    5. Capture Stripe API keys
-    6. Create Vercel project
-    7. Sync environment variables
-    8. Deploy to Vercel preview
-    9. Verify deployment health
+  Expected outputs:
+    Repo:    https://github.com/you/my-app
+    Preview: https://my-app-abc123.vercel.app
 
   ✓ Launch complete!
-    Preview: https://my-app-abc123.vercel.app
-    Repo:    https://github.com/you/my-app
 ```
 
 ## Install
@@ -59,23 +57,26 @@ npm install -g devassemble
 Or run directly:
 
 ```bash
-npx devassemble launch
+npx devassemble
 ```
 
 ## Quick Start
 
 ```bash
-# 1. Set up your provider credentials (guided walkthrough)
-devassemble setup
-
-# 2. Go to your project directory
+# 1. Go to your project directory
 cd your-nextjs-app
 
-# 3. Launch
-devassemble launch
+# 2. Start DevAssemble
+devassemble
 ```
 
-That’s the core beta flow. DevAssemble scans your `package.json` and `.env.example`, provisions a database, creates a GitHub repo, pushes your code, and deploys to Vercel with the detected environment variables wired up.
+From the TUI, the normal beta flow is:
+
+1. Open `Credentials` if you have not connected providers yet.
+2. Choose `Launch project` to review the readiness briefing and confirm.
+3. Use `Status`, `Preview environments`, `Domains`, and `Environment sync` for follow-up actions.
+
+That is the primary product experience. DevAssemble scans your `package.json` and `.env.example`, provisions infrastructure, creates a GitHub repo, pushes your code, deploys to Vercel, and keeps the rest of the workflow inside the TUI.
 
 ## Providers
 
@@ -91,7 +92,27 @@ That’s the core beta flow. DevAssemble scans your `package.json` and `.env.exa
 | **Cloudflare** | Custom domain DNS management | Beta |
 | **PostHog** | Product analytics | Planned |
 
-## Commands
+## TUI-First Workflow
+
+Run DevAssemble with no arguments to open the interactive TUI:
+
+```bash
+devassemble
+```
+
+The TUI is intended to be the main way people use the product. From there you can:
+
+- launch a project after reviewing readiness, warnings, and expected outputs
+- connect and validate provider credentials
+- watch live progress, retries, failures, and remediation steps during a run
+- inspect recent runs, outcomes, warnings, and next steps afterward
+- create preview environments and tear them down
+- configure domains
+- sync environment variables
+
+## Direct Commands
+
+Most developers should just run `devassemble` and stay in the TUI. The direct commands below are still available for automation, shortcuts, and power users.
 
 | Command | Description |
 |---|---|
@@ -128,7 +149,9 @@ That’s the core beta flow. DevAssemble scans your `package.json` and `.env.exa
 
 ## Credential Setup
 
-Run `devassemble setup` for a guided walkthrough, or add credentials manually:
+Use the `Credentials` section in the TUI for the normal guided setup flow.
+
+If you prefer a direct command, `devassemble setup` is still available, and you can also add credentials manually:
 
 ```bash
 devassemble creds add github <personal-access-token>
@@ -153,23 +176,11 @@ devassemble creds add resend <api-key>
 - **Sentry** — [Auth token](https://sentry.io/settings/auth-tokens/) (if `@sentry/nextjs` in `package.json`)
 - **Resend** — [API key](https://resend.com/api-keys) (if `resend` in `package.json`)
 
-## Interactive Mode
-
-Run `devassemble` with no arguments to launch the interactive TUI:
-
-```bash
-devassemble
-```
-
-Navigate with arrow keys to launch, view status, manage credentials, and more.
-
-The TUI now shows:
-
-- launch readiness and blockers before execution
-- live task progress plus recent run activity during execution
-- outcome summaries, warnings, and next steps after execution
-
 ## Preview Environments
+
+The recommended path is to create and manage previews from the TUI.
+
+If you want a direct command:
 
 Create isolated preview environments per git branch:
 
@@ -184,6 +195,10 @@ devassemble preview-teardown feature-auth
 ```
 
 ## Custom Domains
+
+The recommended path is to configure domains from the TUI.
+
+If you want a direct command:
 
 ```bash
 devassemble domain add myapp.com
