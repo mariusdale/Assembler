@@ -44,7 +44,7 @@ export function StatusScreen({
   }, [app]);
 
   if (loading) {
-    return <LoadingIndicator message="Loading runs..." />;
+    return <LoadingIndicator message="Loading deployment history..." />;
   }
 
   if (error) {
@@ -67,8 +67,8 @@ export function StatusScreen({
   if (!runs || runs.length === 0) {
     return (
       <Box flexDirection="column">
-        <Text bold>Status</Text>
-        <Text dimColor>No runs found. Launch your first project to populate this history.</Text>
+        <Text bold>Deployment History</Text>
+        <Text dimColor>No runs found. Launch a project to populate deployment history.</Text>
       </Box>
     );
   }
@@ -83,8 +83,8 @@ export function StatusScreen({
 
   return (
     <Box flexDirection="column">
-      <Text bold>Recent Runs</Text>
-      <Text dimColor>Select a run to inspect resources, warnings, and recovery actions.</Text>
+      <Text bold>Deployment History</Text>
+      <Text dimColor>Select a run to inspect outputs, warnings, and recovery steps.</Text>
       <Box marginTop={1}>
         <SelectInput
           items={items}
@@ -115,6 +115,9 @@ function RunDetail({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const summary = deriveRunOutcomeSummary(run, events ?? []);
+  const failureTask = summary.firstFailure
+    ? run.tasks.find((task) => task.id === summary.firstFailure?.taskId)
+    : undefined;
 
   useNavigation(dispatch, { disabled: true });
 
@@ -131,7 +134,7 @@ function RunDetail({
   }, [app, run.id]);
 
   const items = [
-    { label: 'Back to list', value: 'back' },
+    { label: 'Back to history', value: 'back' },
     ...(run.status === 'failed' ? [{ label: 'Resume run', value: 'resume' }] : []),
     ...(run.status === 'completed' ? [{ label: 'Rollback resources', value: 'rollback' }] : []),
   ];
@@ -148,6 +151,7 @@ function RunDetail({
 
       <StatusPanel title="Outcome" borderColor={summary.kind === 'failed' ? 'red' : summary.kind === 'success_with_warnings' ? 'yellow' : 'green'}>
         <Text bold>{summary.headline}</Text>
+        <Text dimColor>Run ID: {run.id}</Text>
         {summary.previewUrl ? (
           <Text>
             Preview: <Text color="cyan">{summary.previewUrl}</Text>
@@ -187,12 +191,14 @@ function RunDetail({
       {summary.firstFailure ? (
         <StatusPanel title="Failure Summary" borderColor="red">
           <Text color="red" bold>{summary.firstFailure.taskName}</Text>
+          {failureTask ? <Text dimColor>Provider: {failureTask.provider}</Text> : null}
           <Text color="red">{summary.firstFailure.reason}</Text>
           {summary.firstFailure.remediation ? (
             <Text dimColor>{summary.firstFailure.remediation}</Text>
           ) : (
-            <Text dimColor>Use resume when the failure looks transient or after you fix credentials/provider state.</Text>
+            <Text dimColor>Use resume when the failure looks transient or after you correct credentials or provider state.</Text>
           )}
+          <Text dimColor>Recommended next command: devassemble resume {run.id}</Text>
         </StatusPanel>
       ) : null}
 
