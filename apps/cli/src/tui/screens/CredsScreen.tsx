@@ -9,13 +9,15 @@ import { ErrorBox } from '../components/ErrorBox.js';
 import type { TuiAction } from '../types.js';
 
 const ALL_PROVIDERS = [
-  { name: 'github', label: 'GitHub' },
-  { name: 'neon', label: 'Neon' },
-  { name: 'vercel', label: 'Vercel' },
-  { name: 'stripe', label: 'Stripe' },
-  { name: 'clerk', label: 'Clerk' },
-  { name: 'cloudflare', label: 'Cloudflare' },
-];
+  { name: 'github', label: 'GitHub', required: true },
+  { name: 'vercel', label: 'Vercel', required: true },
+  { name: 'neon', label: 'Neon', required: false },
+  { name: 'stripe', label: 'Stripe', required: false },
+  { name: 'clerk', label: 'Clerk', required: false },
+  { name: 'sentry', label: 'Sentry', required: false },
+  { name: 'resend', label: 'Resend', required: false },
+  { name: 'cloudflare', label: 'Cloudflare', required: false },
+] as const;
 
 type CredsView = 'list' | 'add-select' | 'add-input';
 
@@ -74,30 +76,53 @@ export function CredsScreen({
     return <LoadingIndicator message="Loading credentials..." />;
   }
 
+  const missingRequired = ALL_PROVIDERS.filter(
+    (provider) => provider.required && !configured.includes(provider.name),
+  );
+
   return (
     <Box flexDirection="column">
       <Text bold>Credentials</Text>
+      <Text dimColor>Connect the providers DevAssemble needs before launch. This is the primary onboarding path.</Text>
+      <Text dimColor>`devassemble setup` is still available as a legacy shortcut if you prefer a direct CLI flow.</Text>
 
       {error ? <ErrorBox message={error} /> : null}
       {success ? <Text color="green">✓ {success}</Text> : null}
 
       {view === 'list' && (
         <Box flexDirection="column" marginTop={1}>
-          {ALL_PROVIDERS.map((p) => (
-            <Text key={p.name}>
-              {configured.includes(p.name) ? (
+          <Box flexDirection="column" marginBottom={1}>
+            {missingRequired.length > 0 ? (
+              <>
+                <Text color="yellow" bold>Action required</Text>
+                <Text dimColor>
+                  Connect {missingRequired.map((provider) => provider.label).join(' and ')} before attempting a launch.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text color="green" bold>Required launch providers are connected</Text>
+                <Text dimColor>Optional providers can be added when your project needs them.</Text>
+              </>
+            )}
+          </Box>
+
+          {ALL_PROVIDERS.map((provider) => (
+            <Text key={provider.name}>
+              {configured.includes(provider.name) ? (
                 <Text color="green">✓</Text>
               ) : (
                 <Text dimColor>○</Text>
               )}{' '}
-              {p.label}
+              {provider.label}
+              <Text dimColor>{provider.required ? '  required' : '  optional'}</Text>
             </Text>
           ))}
 
           <Box marginTop={1}>
             <SelectInput
               items={[
-                { label: 'Add / replace credential', value: 'add' },
+                { label: 'Add or replace a credential', value: 'add' },
                 { label: 'Back', value: 'back' },
               ]}
               onSelect={(item) => {
@@ -118,9 +143,9 @@ export function CredsScreen({
         <Box flexDirection="column" marginTop={1}>
           <Text>Select provider:</Text>
           <SelectInput
-            items={ALL_PROVIDERS.map((p) => ({
-              label: p.label,
-              value: p.name,
+            items={ALL_PROVIDERS.map((provider) => ({
+              label: `${provider.label}${provider.required ? '  required' : '  optional'}`,
+              value: provider.name,
             }))}
             onSelect={(item) => {
               setSelectedProvider(item.value);
@@ -133,9 +158,7 @@ export function CredsScreen({
 
       {view === 'add-input' && selectedProvider && (
         <Box flexDirection="column" marginTop={1}>
-          <Text>
-            Enter {selectedProvider} token:
-          </Text>
+          <Text>Enter the {selectedProvider} credential:</Text>
           <Box>
             <Text>Token: </Text>
             <TextInput
