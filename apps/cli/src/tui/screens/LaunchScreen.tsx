@@ -291,7 +291,7 @@ export function LaunchScreen({
           />
         )}
         {phase === 'complete' && executedPlan && (
-          <CompletionPhase summary={deriveRunOutcomeSummary(executedPlan, events)} />
+          <CompletionPhase runPlan={executedPlan} summary={deriveRunOutcomeSummary(executedPlan, events)} />
         )}
         {phase === 'error' && error && (
           <Box flexDirection="column">
@@ -331,21 +331,24 @@ function LaunchBriefing({
   const providerReadiness = getProviderReadiness(projectScan, runPlan, preflightResults);
   const expectedOutputs = getExpectedOutputs(runPlan);
   const warnings = getLaunchWarnings(projectScan);
+  const blockingWarnings = warnings.filter((warning) => warning.level === 'blocking');
+  const advisoryWarnings = warnings.filter((warning) => warning.level !== 'blocking');
   const planGroups = groupTasksForPlan(runPlan.tasks);
   const homeDir = process.env.HOME ?? '';
 
   return (
     <Box flexDirection="column">
-      <InfoPanel title="Launch Readiness">
+      <InfoPanel title="Launch Readiness" borderColor={READINESS_COLORS[readiness]}>
         <Text color={READINESS_COLORS[readiness]} bold>
           {READINESS_LABELS[readiness]}
         </Text>
+        <Text dimColor>Run ID: {runPlan.id}</Text>
         <Text dimColor>
           {readiness === 'blocked'
-            ? 'Resolve credentials or lockfile issues before this launch can continue.'
+            ? 'Resolve the blocking items below before approving this launch.'
             : readiness === 'ready_with_warnings'
-              ? 'This project can launch, but there are caveats worth reading first.'
-              : 'This project is ready to launch from the terminal.'}
+              ? 'The project can launch, but you should review the warnings before proceeding.'
+              : 'The project is ready for the supported launch workflow.'}
         </Text>
       </InfoPanel>
 
@@ -354,7 +357,7 @@ function LaunchBriefing({
         <KeyValue label="Directory" value={projectScan.directory.replace(homeDir, '~')} />
         <KeyValue
           label="Git remote"
-          value={projectScan.gitRemoteUrl ?? 'No remote configured - DevAssemble will create one'}
+          value={projectScan.gitRemoteUrl ?? 'No remote configured — DevAssemble will create one'}
         />
         <KeyValue
           label="Lockfile"
@@ -363,19 +366,25 @@ function LaunchBriefing({
         />
       </InfoPanel>
 
-      <InfoPanel title="Provider Readiness">
+      {blockingWarnings.length > 0 ? (
+        <InfoPanel title="Blocking Items" borderColor="red">
+          {blockingWarnings.map((warning) => (
+            <Text key={warning.message} color="red">✗ {warning.message}</Text>
+          ))}
+        </InfoPanel>
+      ) : null}
+
+      {advisoryWarnings.length > 0 ? (
+        <InfoPanel title="Warnings" borderColor="yellow">
+          {advisoryWarnings.map((warning) => (
+            <Text key={warning.message} color="yellow">• {warning.message}</Text>
+          ))}
+        </InfoPanel>
+      ) : null}
+
+      <InfoPanel title="Required Providers">
         {providerReadiness.map((provider) => (
           <ProviderRow key={provider.provider} provider={provider} />
-        ))}
-      </InfoPanel>
-
-      <InfoPanel title="Execution Plan">
-        {planGroups.map((group) => (
-          <PlanGroupRow
-            key={group.key}
-            group={group}
-            {...(group.key === 'infra' ? { estimatedCostUsd: runPlan.estimatedCostUsd } : {})}
-          />
         ))}
       </InfoPanel>
 
@@ -388,11 +397,13 @@ function LaunchBriefing({
         ))}
       </InfoPanel>
 
-      <InfoPanel title="Warnings">
-        {warnings.map((warning) => (
-          <Text key={warning.message} color={warning.level === 'blocking' ? 'red' : 'yellow'}>
-            {warning.level === 'blocking' ? '✗' : '•'} {warning.message}
-          </Text>
+      <InfoPanel title="Execution Plan">
+        {planGroups.map((group) => (
+          <PlanGroupRow
+            key={group.key}
+            group={group}
+            {...(group.key === 'infra' ? { estimatedCostUsd: runPlan.estimatedCostUsd } : {})}
+          />
         ))}
       </InfoPanel>
 
@@ -415,11 +426,15 @@ function ExecutePhase({
   paused: boolean;
   onFailureAction: (taskId: string, action: 'retry' | 'skip' | 'abort') => void;
 }) {
+  const failureTask = view.failure
+    ? runPlan.tasks.find((task) => task.id === view.failure?.taskId)
+    : undefined;
+
   return (
     <Box flexDirection="column">
       <InfoPanel title="Execution">
         <Text>
-          <Text bold>Run</Text> <Text color="cyan">{runPlan.id.slice(0, 8)}</Text>
+          <Text bold>Run</Text> <Text color="cyan">{runPlan.id}</Text>
           <Text dimColor> • {view.currentPhaseLabel}</Text>
           <Text dimColor> • {view.completedCount}/{view.totalCount} complete</Text>
           <Text dimColor> • {view.elapsedLabel} elapsed</Text>
@@ -451,12 +466,14 @@ function ExecutePhase({
       {paused && view.failure ? (
         <InfoPanel title="Failure Recovery" borderColor="red">
           <Text color="red" bold>{view.failure.taskName}</Text>
+          {failureTask ? <Text dimColor>Provider: {failureTask.provider}</Text> : null}
           <Text color="red">{view.failure.reason}</Text>
           {view.failure.remediation ? (
             <Text dimColor>{view.failure.remediation}</Text>
           ) : (
             <Text dimColor>Retry if the failure looks transient, or skip only if you understand the downstream impact.</Text>
           )}
+          <Text dimColor>Recommended next command: devassemble resume {runPlan.id}</Text>
           <Box marginTop={1} flexDirection="column">
             <Text>
               <Text bold color="yellow">[r]</Text>etry
@@ -475,14 +492,24 @@ function ExecutePhase({
   );
 }
 
-function CompletionPhase({ summary }: { summary: RunOutcomeSummary }) {
+function CompletionPhase({
+  runPlan,
+  summary,
+}: {
+  runPlan: RunPlan;
+  summary: RunOutcomeSummary;
+}) {
   const color =
     summary.kind === 'failed' ? 'red' : summary.kind === 'success_with_warnings' ? 'yellow' : 'green';
+  const failureTask = summary.firstFailure
+    ? runPlan.tasks.find((task) => task.id === summary.firstFailure?.taskId)
+    : undefined;
 
   return (
     <Box flexDirection="column">
       <InfoPanel title="Launch Summary" borderColor={color}>
         <Text bold color={color}>{summary.headline}</Text>
+        <Text dimColor>Run ID: {runPlan.id}</Text>
         {summary.previewUrl ? (
           <Text>
             Preview: <Text color="cyan">{summary.previewUrl}</Text>
@@ -522,10 +549,12 @@ function CompletionPhase({ summary }: { summary: RunOutcomeSummary }) {
       {summary.firstFailure ? (
         <InfoPanel title="Failure Details" borderColor="red">
           <Text color="red" bold>{summary.firstFailure.taskName}</Text>
+          {failureTask ? <Text dimColor>Provider: {failureTask.provider}</Text> : null}
           <Text color="red">{summary.firstFailure.reason}</Text>
           {summary.firstFailure.remediation ? (
             <Text dimColor>{summary.firstFailure.remediation}</Text>
           ) : null}
+          <Text dimColor>Recommended next command: devassemble resume {runPlan.id}</Text>
         </InfoPanel>
       ) : null}
 
