@@ -7,7 +7,7 @@ import ora from 'ora';
 import type { ProjectScan, RunPlan, Task } from '@devassemble/types';
 
 import { createCliApp } from './app.js';
-import type { PreflightCheckResults, EnvPullResult, EnvPushResult, SetupResult, DomainAddResult, PreviewResult, PreviewTeardownResult, DoctorResult } from './app.js';
+import type { PreflightCheckResults, EnvPullResult, EnvPushResult, DomainAddResult, PreviewResult, PreviewTeardownResult, DoctorResult } from './app.js';
 
 const FRAMEWORK_LABELS: Record<string, string> = {
   nextjs: 'Next.js',
@@ -38,9 +38,13 @@ export function createProgram(): Command {
 
   program
     .name('devassemble')
-    .description('Scan, provision, and deploy your project — no dashboards required.')
+    .description('Launch and operate your existing Next.js application from the terminal.')
     .version('0.1.0')
-    .showHelpAfterError();
+    .showHelpAfterError()
+    .addHelpText(
+      'after',
+      '\nPrimary workflow: run `devassemble` for the TUI, then use Credentials, Doctor, Launch, and Status to manage the project lifecycle.\n',
+    );
 
   program
     .command('launch')
@@ -48,7 +52,6 @@ export function createProgram(): Command {
     .action(async () => {
       const cliApp = getApp();
 
-      // Phase 1: Scan
       const scanSpinner = ora('Scanning project...').start();
       let projectScan: ProjectScan;
       try {
@@ -62,10 +65,8 @@ export function createProgram(): Command {
         return;
       }
 
-      // Show detected services
       printDetectedServices(projectScan);
 
-      // Lockfile check
       const lc = projectScan.lockfileCheck;
       if (!lc.lockfileExists) {
         console.log();
@@ -91,10 +92,8 @@ export function createProgram(): Command {
         return;
       }
 
-      // Phase 2: Create plan
       const runPlan = cliApp.createPlan(projectScan);
 
-      // Phase 3: Preflight
       console.log();
       console.log(chalk.bold('Checking credentials...'));
       let preflightResults: PreflightCheckResults;
@@ -127,18 +126,15 @@ export function createProgram(): Command {
         return;
       }
 
-      // Phase 4: Show plan
       console.log();
       printExecutionPlan(runPlan);
 
-      // Prompt for confirmation
       const confirmed = await promptConfirm('Proceed?');
       if (!confirmed) {
         console.log(chalk.dim('Aborted.'));
         return;
       }
 
-      // Phase 5: Execute
       console.log();
       let finalPlan: RunPlan;
       try {
@@ -149,7 +145,6 @@ export function createProgram(): Command {
         return;
       }
 
-      // Phase 6: Summary
       const failed = finalPlan.tasks.filter((t) => t.status === 'failed');
       if (failed.length > 0) {
         console.log();
@@ -172,13 +167,13 @@ export function createProgram(): Command {
 
   program
     .command('setup')
-    .description('Guided credential setup for GitHub, Neon, and Vercel.')
+    .description('Legacy shortcut for guided credential setup.')
     .action(async () => {
       const cliApp = getApp();
 
       console.log();
       console.log(chalk.bold('Welcome to DevAssemble!') + " Let's set up your provider credentials.");
-      console.log(chalk.dim("This takes about 5 minutes. You'll need accounts on GitHub, Neon, and Vercel."));
+      console.log(chalk.dim('This shortcut remains available for CLI-first onboarding. The Credentials screen is the primary path in the TUI.'));
       console.log();
 
       const steps = [
@@ -211,10 +206,8 @@ export function createProgram(): Command {
         console.log(chalk.bold(`Step ${stepNumber}/${steps.length}: ${step.label}`));
         console.log(`  ${step.description}`);
 
-        // Check existing credential
         const existingProviders = await cliApp.listCredentials();
         if (existingProviders.includes(step.provider)) {
-          // Validate existing
           const validateSpinner = ora(`  Checking existing ${step.label} credential...`).start();
           try {
             const discovery = await cliApp.discover(step.provider);
@@ -233,11 +226,9 @@ export function createProgram(): Command {
           }
         }
 
-        // Open URL
         console.log(`  ${chalk.dim('→')} ${step.url}`);
         tryOpenUrl(step.url);
 
-        // Prompt for token
         const token = await promptSecret(`  Paste your ${step.label === 'Neon' ? 'API key' : 'token'}: `);
         if (!token) {
           console.log(chalk.yellow(`  Skipped ${step.label}. You can add it later with "devassemble creds add ${step.provider} <token>".`));
@@ -245,10 +236,8 @@ export function createProgram(): Command {
           continue;
         }
 
-        // Store credential
         await cliApp.addCredential(step.provider, step.entries(token));
 
-        // Validate
         const spinner = ora('  Validating...').start();
         try {
           const discovery = await cliApp.discover(step.provider);
@@ -263,7 +252,6 @@ export function createProgram(): Command {
           printError(error);
         }
 
-        // Vercel-specific: check GitHub App
         if (step.provider === 'vercel') {
           console.log();
           console.log(chalk.yellow('  Note: The Vercel GitHub App must be installed for repo linking.'));
@@ -282,7 +270,6 @@ export function createProgram(): Command {
     .action(async () => {
       const cliApp = getApp();
 
-      // Scan
       const scanSpinner = ora('Scanning project...').start();
       let projectScan: ProjectScan;
       try {
@@ -298,10 +285,8 @@ export function createProgram(): Command {
 
       printDetectedServices(projectScan);
 
-      // Create plan (saved to state store but not executed)
       const runPlan = cliApp.createPlan(projectScan);
 
-      // Preflight
       console.log();
       console.log(chalk.bold('Checking credentials...'));
       try {
@@ -330,7 +315,6 @@ export function createProgram(): Command {
         return;
       }
 
-      // Show plan
       console.log();
       printExecutionPlan(runPlan);
 
@@ -343,6 +327,7 @@ export function createProgram(): Command {
     .command('init')
     .argument('<prompt>', 'Natural-language application brief')
     .description('Parse a prompt into a typed application plan.')
+    .hideHelp()
     .action(async (prompt: string) => {
       const runPlan = await getApp().init(prompt);
       console.log(`Created run ${runPlan.id} with ${runPlan.tasks.length} tasks.`);
@@ -353,6 +338,7 @@ export function createProgram(): Command {
     .command('execute')
     .argument('[runId]', 'Run ID to execute')
     .description('Execute an approved run plan or the latest run.')
+    .hideHelp()
     .action(async (runId?: string) => {
       const runPlan = await getApp().execute(runId);
       console.log(`Run ${runPlan.id}: ${runPlan.status}`);
@@ -364,7 +350,7 @@ export function createProgram(): Command {
   program
     .command('status')
     .argument('[runId]', 'Run ID to inspect')
-    .description('Show the current run status.')
+    .description('Show deployment history or inspect a specific run.')
     .action(async (runId?: string) => {
       const runPlan = await getApp().status(runId);
       console.log(`Run ${runPlan.id}: ${runPlan.status}`);
@@ -377,6 +363,7 @@ export function createProgram(): Command {
     .command('events')
     .argument('[runId]', 'Run ID to inspect')
     .description('Show persisted run events for a run.')
+    .hideHelp()
     .action(async (runId?: string) => {
       const events = await getApp().events(runId);
       if (events.length === 0) {
@@ -405,6 +392,7 @@ export function createProgram(): Command {
     .command('rollback')
     .argument('<runId>', 'Run ID to rollback')
     .description('Rollback a completed or partially completed run.')
+    .hideHelp()
     .action(async (runId: string) => {
       const runPlan = await getApp().rollback(runId);
       console.log(`Run ${runPlan.id}: ${runPlan.status}`);
@@ -417,7 +405,6 @@ export function createProgram(): Command {
     .action(async (runId?: string) => {
       const cliApp = getApp();
 
-      // Load the run
       let runPlan: RunPlan;
       try {
         runPlan = await cliApp.status(runId);
@@ -443,7 +430,6 @@ export function createProgram(): Command {
         return;
       }
 
-      // Show what will be deleted
       console.log(chalk.bold('The following resources will be deleted:\n'));
       const teardownItems = describeTeardownActions(successfulTasks);
       for (const item of teardownItems) {
@@ -457,7 +443,6 @@ export function createProgram(): Command {
         return;
       }
 
-      // Execute rollback
       console.log();
       const spinner = ora('Tearing down resources...').start();
       try {
@@ -468,7 +453,6 @@ export function createProgram(): Command {
           if (task.status === 'rolled_back') {
             console.log(`  ${chalk.green('✓')} ${task.name} — removed`);
           } else if (task.status === 'success') {
-            // Tasks that don't have rollback actions (like capture-keys)
             console.log(`  ${chalk.dim('○')} ${task.name} — nothing to remove`);
           }
         }
@@ -607,7 +591,7 @@ export function createProgram(): Command {
       }
     });
 
-  const creds = program.command('creds').description('Manage provider credentials.');
+  const creds = program.command('creds').description('Manage provider credentials for launch workflows.');
   creds
     .command('add')
     .argument('<provider>', 'Provider name')
@@ -635,7 +619,7 @@ export function createProgram(): Command {
 
   program
     .command('doctor')
-    .description('Check system readiness and validate all provider credentials.')
+    .description('Check project readiness and validate configured provider credentials.')
     .action(async () => {
       const spinner = ora('Running diagnostics...').start();
       let result: DoctorResult;
@@ -689,6 +673,7 @@ export function createProgram(): Command {
     .command('discover')
     .argument('<provider>', 'Provider name')
     .description('Validate stored credentials against a provider account.')
+    .hideHelp()
     .action(async (provider: string) => {
       const result = await getApp().discover(provider);
       console.log(`Provider: ${provider}`);
@@ -752,17 +737,12 @@ async function executeWithSpinners(
 ): Promise<RunPlan> {
   const taskSpinners = new Map<string, ReturnType<typeof ora>>();
 
-  // Start all task spinners in pending state
   for (const task of runPlan.tasks) {
     const spinner = ora({ text: chalk.dim(task.name), prefixText: '  ' }).stop();
     taskSpinners.set(task.id, spinner);
   }
 
-  // Execute and poll for status changes
   const resultPromise = cliApp.executePlan(runPlan);
-
-  // We can't easily hook into the executor's event stream from outside,
-  // so we execute and then display results
   const result = await resultPromise;
 
   for (const task of result.tasks) {
@@ -797,6 +777,8 @@ function printCompletionSummary(scan: ProjectScan, plan: RunPlan): void {
   console.log(`│${' '.repeat(56)}│`);
   console.log(`│   ${chalk.green('✓')} ${chalk.bold(`${scan.name} is live!`)}${' '.repeat(Math.max(0, 46 - scan.name.length))}│`);
   console.log(`│${' '.repeat(56)}│`);
+  const runLine = `   Run ID:   ${plan.id}`;
+  console.log(`│${runLine}${' '.repeat(Math.max(0, 56 - runLine.length))}│`);
   if (previewUrl) {
     const line = `   Preview:  ${previewUrl}`;
     console.log(`│${line}${' '.repeat(Math.max(0, 56 - line.length))}│`);
@@ -819,7 +801,6 @@ function printCompletionSummary(scan: ProjectScan, plan: RunPlan): void {
   console.log(`│${' '.repeat(56)}│`);
   console.log(`└${border}┘`);
 
-  // Deployment Protection warning
   if (previewUrl) {
     console.log();
     console.log(chalk.yellow('Note: Vercel preview deployments are protected by default.'));
@@ -827,9 +808,8 @@ function printCompletionSummary(scan: ProjectScan, plan: RunPlan): void {
     console.log(chalk.dim('To disable: Vercel Dashboard → Project Settings → Deployment Protection'));
   }
 
-  // Teardown hint
   console.log();
-  console.log(chalk.dim(`Run "devassemble teardown" to remove all created resources.`));
+  console.log(chalk.dim(`Recommended next command: devassemble teardown`));
 }
 
 function describeTeardownActions(tasks: Task[]): string[] {
