@@ -23,8 +23,13 @@ export function DoctorScreen({
   dispatch: React.Dispatch<TuiAction>;
 }) {
   const app = useCliApp();
-  const { goBack } = useNavigation(dispatch, { disabled: false });
+  useNavigation(dispatch, { disabled: false });
   const [result, setResult] = useState<DoctorResult | null>(null);
+  const [scan, setScan] = useState<{
+    framework: string;
+    lockfileCheck: { lockfileExists: boolean; inSync: boolean };
+    packageJson?: Record<string, unknown>;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,10 +37,15 @@ export function DoctorScreen({
 
     (async () => {
       try {
-        const doctorResult = await app.doctor();
-        if (!cancelled) setResult(doctorResult);
+        const [doctorResult, projectScan] = await Promise.all([app.doctor(), app.scan()]);
+        if (!cancelled) {
+          setResult(doctorResult);
+          setScan(projectScan);
+        }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
       }
     })();
 
@@ -58,7 +68,7 @@ export function DoctorScreen({
     );
   }
 
-  if (!result) {
+  if (!result || !scan) {
     return (
       <Box flexDirection="column">
         <Text bold>Doctor</Text>
@@ -72,60 +82,128 @@ export function DoctorScreen({
     );
   }
 
+  const scripts = scan.packageJson?.scripts as Record<string, unknown> | undefined;
+  const hasBuildScript = typeof scripts?.build === 'string' && scripts.build.trim() !== '';
+  const providerIssues = result.checks.filter(
+    (check) => check.hasCredentials && check.preflightResult?.valid === false,
+  );
+  const missingRequiredProviders = result.checks.filter(
+    (check) => ['github', 'vercel'].includes(check.provider) && !check.hasCredentials,
+  );
+  const projectReady =
+    scan.framework === 'nextjs' &&
+    scan.lockfileCheck.lockfileExists &&
+    scan.lockfileCheck.inSync &&
+    hasBuildScript;
+  const overallHealthy = projectReady && providerIssues.length === 0 && missingRequiredProviders.length === 0;
+
   return (
     <Box flexDirection="column">
       <Text bold>Doctor</Text>
-      <Box marginTop={1} flexDirection="column">
-        <Text>Node.js: <Text color="green">{result.nodeVersion}</Text></Text>
-        <Box marginTop={1} flexDirection="column">
-          <Text bold>Provider Credentials:</Text>
-          {result.checks.map((check) => {
-            const label = PROVIDER_LABELS[check.provider] ?? check.provider;
+      <Text dimColor>Review the project gate first, then confirm required providers are connected and healthy.</Text>
 
-            if (!check.hasCredentials) {
-              return (
-                <Text key={check.provider} dimColor>
-                  {'  '}○ {label} — not configured
-                </Text>
-              );
-            }
+      <Panel title="Project Readiness" borderColor={projectReady ? 'green' : 'red'}>
+        <CheckRow label="Framework" ok={scan.framework === 'nextjs'} detail={scan.framework === 'nextjs' ? 'Next.js' : `Detected ${scan.framework}`} />
+        <CheckRow label="Lockfile" ok={scan.lockfileCheck.lockfileExists} detail={scan.lockfileCheck.lockfileExists ? 'Present' : 'Missing'} />
+        <CheckRow label="Lockfile sync" ok={scan.lockfileCheck.inSync} detail={scan.lockfileCheck.inSync ? 'In sync' : 'Out of sync'} />
+        <CheckRow label="Build script" ok={hasBuildScript} detail={hasBuildScript ? 'Configured' : 'Missing from package.json'} />
+      </Panel>
 
-            if (check.preflightResult?.valid) {
-              return (
-                <Text key={check.provider}>
-                  {'  '}<Text color="green">✓</Text> {label}
-                </Text>
-              );
-            }
+      <Panel title="Provider Readiness" borderColor={providerIssues.length === 0 ? 'cyan' : 'yellow'}>
+        {result.checks.map((check) => {
+          const label = PROVIDER_LABELS[check.provider] ?? check.provider;
 
+          if (!check.hasCredentials) {
             return (
-              <Box key={check.provider} flexDirection="column">
-                <Text>
-                  {'  '}<Text color="red">✗</Text> {label}
-                </Text>
-                {check.preflightResult?.errors.map((err, i) => (
-                  <Box key={i} flexDirection="column" marginLeft={4}>
-                    <Text color="red" dimColor>{err.message}</Text>
-                    {err.remediation ? (
-                      <Text dimColor>{err.remediation}</Text>
-                    ) : null}
-                  </Box>
-                ))}
-              </Box>
+              <Text key={check.provider} dimColor>
+                ○ {label} — not configured
+              </Text>
             );
-          })}
-        </Box>
-        <Box marginTop={1}>
-          {result.allHealthy ? (
-            <Text color="green">All configured providers are healthy.</Text>
-          ) : (
-            <Text color="yellow">Some providers have issues. Fix them before launching.</Text>
-          )}
-        </Box>
-      </Box>
+          }
+
+          if (check.preflightResult?.valid) {
+            return (
+              <Text key={check.provider}>
+                <Text color="green">✓</Text> {label}
+              </Text>
+            );
+          }
+
+          return (
+            <Box key={check.provider} flexDirection="column" marginBottom={1}>
+              <Text>
+                <Text color="red">✗</Text> {label}
+              </Text>
+              {(check.preflightResult?.errors ?? []).map((issue) => (
+                <Box key={`${check.provider}-${issue.code}`} flexDirection="column" marginLeft={2}>
+                  <Text color="red">{issue.message}</Text>
+                  <Text dimColor>{issue.remediation}</Text>
+                </Box>
+              ))}
+            </Box>
+          );
+        })}
+      </Panel>
+
+      <Panel title="Verdict" borderColor={overallHealthy ? 'green' : 'yellow'}>
+        <Text color={overallHealthy ? 'green' : 'yellow'} bold>
+          {overallHealthy ? 'Ready for launch' : 'Action required before launch'}
+        </Text>
+        {!projectReady ? (
+          <Text dimColor>Resolve the project readiness checks above before starting a launch.</Text>
+        ) : null}
+        {missingRequiredProviders.length > 0 ? (
+          <Text dimColor>Connect GitHub and Vercel credentials in the Credentials screen before launching.</Text>
+        ) : null}
+        {providerIssues.length > 0 ? (
+          <Text dimColor>Fix provider issues before retrying launch or preview flows.</Text>
+        ) : null}
+        {overallHealthy ? (
+          <Text dimColor>Recommended next command: devassemble launch</Text>
+        ) : (
+          <Text dimColor>Recommended next command: devassemble doctor</Text>
+        )}
+      </Panel>
+
       <Box marginTop={1}>
         <Text dimColor>Press esc to go back</Text>
       </Box>
     </Box>
+  );
+}
+
+function Panel({
+  title,
+  children,
+  borderColor = 'cyan',
+}: {
+  title: string;
+  children: React.ReactNode;
+  borderColor?: string;
+}) {
+  return (
+    <Box flexDirection="column" borderStyle="round" borderColor={borderColor} paddingX={1} marginTop={1}>
+      <Text bold>{title}</Text>
+      <Box flexDirection="column" marginTop={1}>
+        {children}
+      </Box>
+    </Box>
+  );
+}
+
+function CheckRow({
+  label,
+  ok,
+  detail,
+}: {
+  label: string;
+  ok: boolean;
+  detail: string;
+}) {
+  return (
+    <Text>
+      <Text color={ok ? 'green' : 'red'}>{ok ? '✓' : '✗'}</Text> {label}
+      <Text dimColor>{` — ${detail}`}</Text>
+    </Text>
   );
 }
