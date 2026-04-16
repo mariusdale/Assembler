@@ -10,7 +10,7 @@ export function Header() {
       <Text bold color="cyan">
         DevAssemble <Text dimColor>v0.1.0</Text>
       </Text>
-      <Text dimColor>Private beta for indie hackers launching Next.js apps from the terminal</Text>
+      <Text dimColor>Launch and operate Next.js applications from the terminal</Text>
       <Text dimColor>{shortCwd}</Text>
     </Box>
   );
