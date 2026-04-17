@@ -48,10 +48,12 @@ export function createStateStore(cwd: string): LocalStateStore {
     const fileStore = new FileRunStateStore(fileFilename);
     fileStore.initialize();
 
-    const reason = error instanceof Error ? error.message : String(error);
-    console.warn(
-      `Warning: SQLite state store unavailable; using file-backed state at ${fileFilename}. ${reason}`,
-    );
+    if (process.env.DEVASSEMBLE_DEBUG === '1') {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `Warning: SQLite state store unavailable; using file-backed state at ${fileFilename}. ${reason}`,
+      );
+    }
 
     return fileStore;
   }
