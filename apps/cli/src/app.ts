@@ -1,6 +1,6 @@
 import { execFile as execFileCb } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 
 import {
@@ -10,13 +10,12 @@ import {
   createExecutor,
   planPrompt,
   scanProject,
-  SqliteRunStateStore,
 } from '@devassemble/core';
 import { createProviderRegistry, NeonClient, VercelClient } from '@devassemble/providers';
 import type { AppSpec, Credentials, DiscoveryResult, PreviewRecord, ProjectScan, RunEvent, RunPlan } from '@devassemble/types';
 
-const STATE_DIRECTORY_NAME = '.devassemble';
-const STATE_FILENAME = 'state.db';
+import { createStateStore, type LocalStateStore } from './state-store.js';
+
 const REQUIRED_LIVE_PROVIDERS = new Set(['clerk', 'cloudflare', 'github', 'neon', 'resend', 'sentry', 'stripe', 'vercel']);
 
 export interface LaunchResult {
@@ -101,10 +100,7 @@ export interface SetupResult {
 }
 
 export function createCliApp(cwd = process.cwd()): CliApp {
-  const stateStore = new SqliteRunStateStore({
-    filename: resolveStateFile(cwd),
-  });
-  stateStore.initialize();
+  const stateStore = createStateStore(cwd);
   const providerRegistry = createProviderRegistry();
 
   const executor = createExecutor({
@@ -213,14 +209,11 @@ export function createCliApp(cwd = process.cwd()): CliApp {
     },
     rollback: async (runId: string): Promise<RunPlan> => executor.rollback(runId),
     setup: async (): Promise<SetupResult> => {
-      // 1. Scan the project
       const projectScan = await scanProject(cwd);
 
-      // 2. Check which credentials we have / are missing
       const detectedProviderNames = [
         ...new Set(projectScan.detectedProviders.map((p) => p.provider)),
       ].filter((p) => REQUIRED_LIVE_PROVIDERS.has(p));
-      // Vercel is always needed for setup (even if not explicitly detected)
       if (!detectedProviderNames.includes('vercel')) {
         detectedProviderNames.push('vercel');
       }
@@ -229,7 +222,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
         (p) => !stateStore.getCredentialRecord(p),
       );
 
-      // 3. Must have Vercel credentials to proceed
       const vercelRecord = stateStore.getCredentialRecord('vercel');
       if (!vercelRecord) {
         throw new Error(
@@ -240,7 +232,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       const vercelCreds = resolveCredentials('vercel', vercelRecord);
       const client = new VercelClient(vercelCreds);
 
-      // 4. Find the Vercel project linked to this git remote
       let vercelProjectName: string | undefined;
 
       if (projectScan.gitRemoteUrl) {
@@ -249,7 +240,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
         vercelProjectName = projects[0]?.name;
       }
 
-      // Fallback: try project name directly
       if (!vercelProjectName) {
         try {
           const project = await client.getProject(toSlug(projectScan.name));
@@ -261,11 +251,10 @@ export function createCliApp(cwd = process.cwd()): CliApp {
 
       if (!vercelProjectName) {
         throw new Error(
-          `Could not find a Vercel project linked to this repository. Run "devassemble launch" first to create one.`,
+          'Could not find a Vercel project linked to this repository. Run "devassemble launch" first to create one.',
         );
       }
 
-      // 5. Pull env vars
       const { envs } = await client.listProjectEnvVars(vercelProjectName);
       const variables: Record<string, string> = {};
       for (const env of envs) {
@@ -331,7 +320,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
     preview: async (branchName?: string): Promise<PreviewResult> => {
       const execFile = promisify(execFileCb);
 
-      // Auto-detect branch if not provided
       if (!branchName) {
         const { stdout } = await execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
         branchName = stdout.trim();
@@ -343,7 +331,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
         );
       }
 
-      // Find the latest production run
       const latestRunId = findLatestRunId(stateStore);
       if (!latestRunId) {
         throw new Error('No launch run found. Run "devassemble launch" first.');
@@ -353,7 +340,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
         throw new Error('Could not load the latest run.');
       }
 
-      // Extract production info from run
       const vercelTask = run.tasks.find(
         (t) => t.provider === 'vercel' && t.action === 'create-project' && t.status === 'success',
       );
@@ -371,23 +357,19 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       }
       const repoId = githubTask.outputs.repoId;
 
-      // Push branch to GitHub
       try {
         await execFile('git', ['push', '-u', 'origin', branchName], { cwd });
       } catch {
         // Branch may already be pushed — continue
       }
 
-      // Get current SHA
       const { stdout: sha } = await execFile('git', ['rev-parse', 'HEAD'], { cwd });
       const commitSha = sha.trim();
 
-      // Check if Neon exists in production run
       const neonTask = run.tasks.find(
         (t) => t.provider === 'neon' && t.action === 'create-project' && t.status === 'success',
       );
 
-      // Build preview plan
       const previewTasks: import('@devassemble/types').Task[] = [];
 
       if (neonTask) {
@@ -448,11 +430,8 @@ export function createCliApp(cwd = process.cwd()): CliApp {
 
       stateStore.saveRun(previewPlan);
 
-      // If Neon branch, we need to update the DATABASE_URL after the branch is created
-      // We do this by hooking into the executor's task output system
       const result = await executor.execute({ runPlan: previewPlan });
 
-      // Extract results
       const neonBranchTask = result.runPlan.tasks.find((t: import('@devassemble/types').Task) => t.id === 'neon-create-preview-branch');
       const deployTask = result.runPlan.tasks.find((t: import('@devassemble/types').Task) => t.id === 'vercel-deploy-branch-preview');
       const waitTask = result.runPlan.tasks.find((t: import('@devassemble/types').Task) => t.id === 'vercel-wait-for-ready');
@@ -462,7 +441,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
         (deployTask?.outputs.previewUrl as string | undefined);
       const databaseUrl = neonBranchTask?.outputs.databaseUrl as string | undefined;
 
-      // Save preview record
       const previewRecord: PreviewRecord = {
         id: crypto.randomUUID(),
         parentRunId: latestRunId,
@@ -487,7 +465,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
     previewTeardown: async (branchName?: string): Promise<PreviewTeardownResult> => {
       const execFile = promisify(execFileCb);
 
-      // Auto-detect branch if not provided
       if (!branchName) {
         const { stdout } = await execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
         branchName = stdout.trim();
@@ -502,7 +479,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
 
       let deletedBranch = false;
 
-      // Delete Neon branch if it exists
       if (previewRecord.neonProjectId && previewRecord.neonBranchId) {
         try {
           const neonCreds = resolveCredentials('neon', stateStore.getCredentialRecord('neon'));
@@ -522,7 +498,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       };
     },
     domainAdd: async (domain: string): Promise<DomainAddResult> => {
-      // Load latest run to get Vercel project ID
       const latestRunId = findLatestRunId(stateStore);
       if (!latestRunId) {
         throw new Error('No launch run found. Run "devassemble launch" first to create a project.');
@@ -540,7 +515,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       }
       const projectId = String(vercelTask.outputs.projectId);
 
-      // Run preflight for cloudflare
       const cfPack = providerRegistry.cloudflare;
       if (!cfPack) throw new Error('Cloudflare provider not registered.');
 
@@ -553,7 +527,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
         }
       }
 
-      // Build and execute a mini domain plan
       const domainPlan = createDomainPlan(domain, projectId, run.id);
       stateStore.saveRun(domainPlan);
 
@@ -632,12 +605,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
   };
 }
 
-function resolveStateFile(cwd: string): string {
-  const preferredDirectory = resolve(cwd, STATE_DIRECTORY_NAME);
-  mkdirSync(preferredDirectory, { recursive: true });
-  return join(preferredDirectory, STATE_FILENAME);
-}
-
 function createHeuristicParser(): {
   parse(prompt: string): Promise<{
     appSpec: AppSpec;
@@ -698,11 +665,11 @@ function createHeuristicParser(): {
   };
 }
 
-function findLatestRunId(stateStore: SqliteRunStateStore): string | undefined {
+function findLatestRunId(stateStore: LocalStateStore): string | undefined {
   return stateStore.listRuns()[0]?.id;
 }
 
-function loadRun(stateStore: SqliteRunStateStore, runId?: string): RunPlan {
+function loadRun(stateStore: LocalStateStore, runId?: string): RunPlan {
   const targetRunId = runId ?? findLatestRunId(stateStore);
   if (!targetRunId) {
     throw new Error('No runs found in the local state store.');
@@ -892,7 +859,7 @@ export interface PreflightCheckResults {
 
 export async function runPreflightChecks(
   runPlan: RunPlan,
-  stateStore: SqliteRunStateStore,
+  stateStore: LocalStateStore,
   providerRegistry: ReturnType<typeof createProviderRegistry>,
 ): Promise<PreflightCheckResults> {
   const providers = [...new Set(runPlan.tasks.map((task) => task.provider))]
@@ -962,7 +929,7 @@ function formatPreflightFailures(preflightResults: PreflightCheckResults): strin
 }
 
 function resolveVercelProject(
-  stateStore: SqliteRunStateStore,
+  stateStore: LocalStateStore,
   runId?: string,
 ): { client: VercelClient; projectName: string } {
   const targetRunId = runId ?? stateStore.listRuns()[0]?.id;
@@ -1001,7 +968,6 @@ function resolveVercelProject(
 }
 
 function normalizeGitUrl(gitUrl: string): string {
-  // Convert SSH format to HTTPS for Vercel API matching
   const sshMatch = gitUrl.match(/git@github\.com:(.+?)\/(.+?)(?:\.git)?$/);
   if (sshMatch) {
     return `https://github.com/${sshMatch[1]}/${sshMatch[2]}`;
