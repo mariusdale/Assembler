@@ -324,10 +324,9 @@ export function createProgram(): Command {
     });
 
   program
-    .command('init')
+    .command('init', { hidden: true })
     .argument('<prompt>', 'Natural-language application brief')
     .description('Parse a prompt into a typed application plan.')
-    .hideHelp()
     .action(async (prompt: string) => {
       const runPlan = await getApp().init(prompt);
       console.log(`Created run ${runPlan.id} with ${runPlan.tasks.length} tasks.`);
@@ -335,10 +334,9 @@ export function createProgram(): Command {
     });
 
   program
-    .command('execute')
+    .command('execute', { hidden: true })
     .argument('[runId]', 'Run ID to execute')
     .description('Execute an approved run plan or the latest run.')
-    .hideHelp()
     .action(async (runId?: string) => {
       const runPlan = await getApp().execute(runId);
       console.log(`Run ${runPlan.id}: ${runPlan.status}`);
@@ -360,10 +358,9 @@ export function createProgram(): Command {
     });
 
   program
-    .command('events')
+    .command('events', { hidden: true })
     .argument('[runId]', 'Run ID to inspect')
     .description('Show persisted run events for a run.')
-    .hideHelp()
     .action(async (runId?: string) => {
       const events = await getApp().events(runId);
       if (events.length === 0) {
@@ -389,10 +386,9 @@ export function createProgram(): Command {
     });
 
   program
-    .command('rollback')
+    .command('rollback', { hidden: true })
     .argument('<runId>', 'Run ID to rollback')
     .description('Rollback a completed or partially completed run.')
-    .hideHelp()
     .action(async (runId: string) => {
       const runPlan = await getApp().rollback(runId);
       console.log(`Run ${runPlan.id}: ${runPlan.status}`);
@@ -670,10 +666,9 @@ export function createProgram(): Command {
     });
 
   program
-    .command('discover')
+    .command('discover', { hidden: true })
     .argument('<provider>', 'Provider name')
     .description('Validate stored credentials against a provider account.')
-    .hideHelp()
     .action(async (provider: string) => {
       const result = await getApp().discover(provider);
       console.log(`Provider: ${provider}`);
