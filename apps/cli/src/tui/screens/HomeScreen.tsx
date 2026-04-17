@@ -184,13 +184,15 @@ function MenuRow({
   item: MenuItem;
   selected: boolean;
 }) {
-  return (
-    <Text color={selected ? 'cyan' : undefined}>
+  const content = (
+    <>
       {selected ? '› ' : '  '}
       <Text bold={selected}>{item.label}</Text>
       <Text dimColor>{`  ${item.description}`}</Text>
-    </Text>
+    </>
   );
+
+  return selected ? <Text color="cyan">{content}</Text> : <Text>{content}</Text>;
 }
 
 function buildAssessment(
