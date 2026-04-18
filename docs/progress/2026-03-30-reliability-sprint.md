@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make the core three-provider launch path (GitHub → Neon → Vercel) reliable and package DevAssemble for first users. No new features — only bug fixes, error handling, tests, and documentation.
+Make the core three-provider launch path (GitHub → Neon → Vercel) reliable and package Assembler for first users. No new features — only bug fixes, error handling, tests, and documentation.
 
 ## What was done
 
@@ -62,7 +62,7 @@ GitHub had 422 handling for repo creation (idempotent), but Neon and Vercel had 
 
 ### The `link-repository` destructive behavior was dangerous
 
-Vercel's `createOrResolveLinkedProject()` would delete and recreate a project if it was linked to a different repo. This is dangerous during resume — if the user manually linked the project to a different repo between runs, DevAssemble would silently delete it. Changed to throw with guidance instead.
+Vercel's `createOrResolveLinkedProject()` would delete and recreate a project if it was linked to a different repo. This is dangerous during resume — if the user manually linked the project to a different repo between runs, Assembler would silently delete it. Changed to throw with guidance instead.
 
 ### Type errors accumulate in app.ts
 

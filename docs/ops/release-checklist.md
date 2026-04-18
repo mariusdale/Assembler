@@ -9,8 +9,8 @@ Use this checklist before a beta tag, a live demo, or a new onboarding wave.
 - `pnpm build`
 - `pnpm test`
 - packaged install smoke from the bundled CLI artifact
-- one manual live `devassemble launch` rehearsal against real providers
-- one manual `devassemble preview` rehearsal if previews will be shown
+- one manual live `assembler launch` rehearsal against real providers
+- one manual `assembler preview` rehearsal if previews will be shown
 
 ## Product Surface
 

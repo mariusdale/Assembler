@@ -1,7 +1,7 @@
-# DevAssemble
+# Assembler
 
-DevAssemble is a CLI tool that provisions infrastructure and deploys existing projects.
-It does NOT generate code. Users build their app, then run `devassemble launch` from
+Assembler is a CLI tool that provisions infrastructure and deploys existing projects.
+It does NOT generate code. Users build their app, then run `assembler launch` from
 their project directory to go live without touching any provider dashboards.
 
 ## Current milestone: Post-deploy health check (Milestone 12)
@@ -21,21 +21,21 @@ apps/web/          Placeholder — no web dashboard in scope
 
 ## Key flows
 
-- `devassemble launch` — scan → preflight → plan → confirm → execute → summary
-- `devassemble plan` — scan → preflight → plan display (dry run, no execution)
-- `devassemble teardown [runId]` — roll back all resources created by a launch run
-- `devassemble env pull [runId]` — pull env vars from Vercel into `.env.local`
-- `devassemble env push [runId]` — push local `.env.local`/`.env` to Vercel
-- `devassemble setup` — onboard new team member (find Vercel project, pull env vars)
-- `devassemble preview [branch]` — create per-branch preview env (Neon branch + Vercel deploy)
-- `devassemble preview-teardown [branch]` — tear down preview environment
-- `devassemble domain add <domain>` — configure custom domain (Cloudflare DNS + Vercel)
-- `devassemble init <prompt>` — old LLM/heuristic path (AppSpec-based, not used by launch)
-- `devassemble execute` / `resume` / `rollback` — operate on stored run plans
+- `assembler launch` — scan → preflight → plan → confirm → execute → summary
+- `assembler plan` — scan → preflight → plan display (dry run, no execution)
+- `assembler teardown [runId]` — roll back all resources created by a launch run
+- `assembler env pull [runId]` — pull env vars from Vercel into `.env.local`
+- `assembler env push [runId]` — push local `.env.local`/`.env` to Vercel
+- `assembler setup` — onboard new team member (find Vercel project, pull env vars)
+- `assembler preview [branch]` — create per-branch preview env (Neon branch + Vercel deploy)
+- `assembler preview-teardown [branch]` — tear down preview environment
+- `assembler domain add <domain>` — configure custom domain (Cloudflare DNS + Vercel)
+- `assembler init <prompt>` — old LLM/heuristic path (AppSpec-based, not used by launch)
+- `assembler execute` / `resume` / `rollback` — operate on stored run plans
 
 ## Conventions
 
-- **No code generation.** DevAssemble provisions infrastructure and deploys what exists.
+- **No code generation.** Assembler provisions infrastructure and deploys what exists.
 - **Preflight before execution.** All provider credentials are validated before any resource-creating API call.
 - **Every error needs a remediation hint.** Never surface raw HTTP errors.
 - **Idempotent provider actions.** If a resource already exists, detect and continue.
@@ -44,15 +44,15 @@ apps/web/          Placeholder — no web dashboard in scope
 
 ## Provider credentials
 
-Stored locally in `.devassemble/state.db`. Added via `devassemble creds add <provider> <token>`.
-Vercel supports structured entries: `devassemble creds add vercel token=<tok> teamId=<id>`.
-Clerk supports structured entries: `devassemble creds add clerk token=<secret-key> publishableKey=<pk_...>`.
+Stored locally in `.assembler/state.db`. Added via `assembler creds add <provider> <token>`.
+Vercel supports structured entries: `assembler creds add vercel token=<tok> teamId=<id>`.
+Clerk supports structured entries: `assembler creds add clerk token=<secret-key> publishableKey=<pk_...>`.
 
 ## Known design decisions
 
 - The old AppSpec/template path (`init`, `createRunPlan`) is kept but the `launch` flow never touches it.
 - The scan-based path (`createRunPlanFromProjectScan`) is the active code path for `launch`.
-- Neon schema migration was removed from the scan plan — DevAssemble doesn't run user code. Users run their own migrations post-deploy.
+- Neon schema migration was removed from the scan plan — Assembler doesn't run user code. Users run their own migrations post-deploy.
 - Vercel's `wait-for-ready` uses its own `setTimeout`-based sleep, independent of the executor's retry sleep.
 
 ## Stripe provider design
@@ -72,7 +72,7 @@ Clerk supports structured entries: `devassemble creds add clerk token=<secret-ke
 ## Sentry provider design
 
 - Sentry is detected when the scanner finds `@sentry/nextjs` in deps, `SENTRY_DSN` in env vars, or `sentry.*.config.*` files.
-- The scan path generates a single `sentry-capture-dsn` task (no project creation — DevAssemble reads existing Sentry projects).
+- The scan path generates a single `sentry-capture-dsn` task (no project creation — Assembler reads existing Sentry projects).
 - `capture-dsn` lists orgs → finds/matches project (prefers Next.js-related slugs) → reads DSN from project keys.
 - Vercel env var sync picks up `SENTRY_DSN` from the capture task outputs.
 - Token format: `sntrys_` prefix or 64-character hex string.
@@ -87,29 +87,29 @@ Clerk supports structured entries: `devassemble creds add clerk token=<secret-ke
 
 ## Cloudflare provider design
 
-- Cloudflare is used for custom domain DNS management via `devassemble domain add`.
+- Cloudflare is used for custom domain DNS management via `assembler domain add`.
 - Actions: `lookup-zone` (find zone by domain), `create-dns-record` (CNAME → `cname.vercel-dns.com`), `verify-dns`.
 - `domain add` is a standalone post-launch command that builds a mini task DAG and executes it.
 - Vercel `add-domain` action registers the domain on the Vercel project; SSL is auto-provisioned.
 
 ## Preview environments design
 
-- `devassemble preview [branch]` creates an isolated environment per git branch.
+- `assembler preview [branch]` creates an isolated environment per git branch.
 - Creates a Neon branch (instant copy-on-write from production) with its own connection URI.
 - Sets a preview-scoped `DATABASE_URL` env var on the Vercel project.
 - Triggers a Vercel preview deployment for the branch.
 - Preview records are stored in `previews` table in the SQLite state store.
-- `devassemble preview-teardown [branch]` deletes the Neon branch and marks the preview as torn down.
+- `assembler preview-teardown [branch]` deletes the Neon branch and marks the preview as torn down.
 - If the production run has no Neon, the preview skips database branching and just deploys.
 
 ## Testing a live run
 
 1. Create/use a Next.js project with a `.env.example` containing `DATABASE_URL=`
    (and optionally `STRIPE_SECRET_KEY=` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=`)
-2. `devassemble creds add github <github-pat-with-repo-scope>`
-3. `devassemble creds add neon <neon-account-api-key>`
-4. `devassemble creds add stripe <stripe-secret-key>` (only if project uses Stripe)
-5. `devassemble creds add sentry <sentry-auth-token>` (only if project uses Sentry)
-6. `devassemble creds add resend <resend-api-key>` (only if project uses Resend)
-7. `devassemble creds add vercel token=<vercel-token>`
-8. `cd <project-dir> && devassemble launch`
+2. `assembler creds add github <github-pat-with-repo-scope>`
+3. `assembler creds add neon <neon-account-api-key>`
+4. `assembler creds add stripe <stripe-secret-key>` (only if project uses Stripe)
+5. `assembler creds add sentry <sentry-auth-token>` (only if project uses Sentry)
+6. `assembler creds add resend <resend-api-key>` (only if project uses Resend)
+7. `assembler creds add vercel token=<vercel-token>`
+8. `cd <project-dir> && assembler launch`

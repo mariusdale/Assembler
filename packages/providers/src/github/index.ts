@@ -9,7 +9,7 @@ import type {
   TaskResult,
   TaskTemplate,
   VerifyResult,
-} from '@devassemble/types';
+} from '@assembler/types';
 
 import { HttpError } from '../shared/http.js';
 import { GitHubClient } from './client.js';
@@ -30,7 +30,7 @@ export const githubProviderPack: ProviderPack = {
             code: 'GITHUB_TOKEN_MISSING',
             message: 'No GitHub token configured.',
             remediation:
-              'Add a GitHub personal access token with "devassemble creds add github <token>".',
+              'Add a GitHub personal access token with "assembler creds add github <token>".',
             url: 'https://github.com/settings/tokens',
           },
         ],
@@ -55,7 +55,7 @@ export const githubProviderPack: ProviderPack = {
           code: 'GITHUB_TOKEN_INVALID',
           message: 'Your GitHub token is invalid or expired.',
           remediation:
-            'Generate a new token at https://github.com/settings/tokens and update it with "devassemble creds add github <token>".',
+            'Generate a new token at https://github.com/settings/tokens and update it with "assembler creds add github <token>".',
           url: 'https://github.com/settings/tokens',
         });
       } else {
@@ -167,7 +167,7 @@ export const githubProviderPack: ProviderPack = {
             owner,
             repo: repoName,
             branch,
-            message: `Deploy via DevAssemble`,
+            message: `Deploy via Assembler`,
             files,
           });
 
@@ -184,7 +184,7 @@ export const githubProviderPack: ProviderPack = {
           if (error instanceof HttpError && error.status === 404) {
             throw new Error(
               `Failed to push to ${owner}/${repoName}: repository not found or not yet initialized. ` +
-              `The repo may still be initializing — try running "devassemble resume" in a few seconds.`,
+              `The repo may still be initializing — try running "assembler resume" in a few seconds.`,
             );
           }
           if (error instanceof HttpError && error.status === 403) {
@@ -333,14 +333,14 @@ function toSlug(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 63) || 'devassemble-app';
+    .slice(0, 63) || 'assembler-app';
 }
 
 function getProjectName(ctx: ExecutionContext): string {
   return (
     ctx.projectScan?.name ??
     ctx.appSpec?.name ??
-    'devassemble-app'
+    'assembler-app'
   );
 }
 

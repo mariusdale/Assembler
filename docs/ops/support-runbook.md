@@ -7,7 +7,7 @@ When a beta user reports a problem, collect:
 - `runId`
 - first failing task name or id
 - provider involved
-- remediation text shown by DevAssemble
+- remediation text shown by Assembler
 - whether `doctor`, `resume <runId>`, or `teardown` was attempted
 
 ## Classification
@@ -19,9 +19,9 @@ When a beta user reports a problem, collect:
 
 ## Immediate Actions
 
-- If required credentials are missing or invalid: run `devassemble doctor`
-- If the failure looks transient after correction: run `devassemble resume <runId>`
-- If unwanted resources were created during a test: run `devassemble teardown`
+- If required credentials are missing or invalid: run `assembler doctor`
+- If the failure looks transient after correction: run `assembler resume <runId>`
+- If unwanted resources were created during a test: run `assembler teardown`
 - If preview verification shows `401`: confirm whether Vercel Deployment Protection is expected
 
 ## Escalation Format

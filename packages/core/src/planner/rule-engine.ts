@@ -1,4 +1,4 @@
-import type { AppSpec, ProjectScan, RiskLevel, RunPlan, Task } from '@devassemble/types';
+import type { AppSpec, ProjectScan, RiskLevel, RunPlan, Task } from '@assembler/types';
 
 import type { CreateRunPlanOptions, PlannerTaskSeed } from './types.js';
 
@@ -770,5 +770,5 @@ function toSlug(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 63) || 'devassemble-app';
+    .slice(0, 63) || 'assembler-app';
 }

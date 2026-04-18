@@ -5,7 +5,7 @@ import { useNavigation } from '../hooks/use-navigation.js';
 import { LoadingIndicator } from '../components/LoadingIndicator.js';
 import { ErrorBox } from '../components/ErrorBox.js';
 import type { TuiState, TuiAction } from '../types.js';
-import type { ProjectScan, RunPlan } from '@devassemble/types';
+import type { ProjectScan, RunPlan } from '@assembler/types';
 
 const FRAMEWORK_LABELS: Record<string, string> = {
   nextjs: 'Next.js',

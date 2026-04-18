@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { RunEvent } from '@devassemble/types';
+import type { RunEvent } from '@assembler/types';
 import { useCliApp } from '../context.js';
 
 export function useEventStream(runId: string | null) {

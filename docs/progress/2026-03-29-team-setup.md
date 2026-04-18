@@ -1,11 +1,11 @@
-# March 29, 2026: Milestone 8 — Team Onboarding with `devassemble setup`
+# March 29, 2026: Milestone 8 — Team Onboarding with `assembler setup`
 
 ## What was done
 
-### `devassemble setup` command
+### `assembler setup` command
 
 One command for new team members to get a working local environment after cloning
-a project that was previously launched with DevAssemble.
+a project that was previously launched with Assembler.
 
 **Flow:**
 1. Scans the project (detect framework, providers, env var requirements)
@@ -14,7 +14,7 @@ a project that was previously launched with DevAssemble.
 4. Pulls all env vars from Vercel into `.env.local`
 5. Reports any missing provider credentials (informational, not blocking)
 
-**The key insight**: a new developer doesn't have `.devassemble/state.db` because
+**The key insight**: a new developer doesn't have `.assembler/state.db` because
 that file is gitignored. So `setup` can't look up the Vercel project from a stored
 run. Instead, it uses the Vercel API's `repoUrl` filter on `GET /v10/projects` to
 find the project linked to the current git remote.
@@ -50,7 +50,7 @@ URL from the pulled env vars and runs their own migrations.
 ## Example output
 
 ```
-$ devassemble setup
+$ assembler setup
 ✓ Local environment configured
 
 Setup complete:
@@ -59,7 +59,7 @@ Setup complete:
   ✓ 3 env var(s) written to .env.local
 
 Missing provider credentials (not required for local dev):
-  ! Neon: run devassemble creds add neon <token>
+  ! Neon: run assembler creds add neon <token>
 
 You can now run your dev server. Env vars are in .env.local.
 ```
@@ -69,8 +69,8 @@ You can now run your dev server. Env vars are in .env.local.
 **Before**: New developer joins → clones repo → asks "where are the env vars?" →
 waits for someone to share credentials → manually creates `.env.local` → 1-2 hours.
 
-**After**: New developer joins → clones repo → `devassemble creds add vercel token=<tok>` →
-`devassemble setup` → env vars pulled → `npm run dev` → 60 seconds.
+**After**: New developer joins → clones repo → `assembler creds add vercel token=<tok>` →
+`assembler setup` → env vars pulled → `npm run dev` → 60 seconds.
 
 ## Test results
 
@@ -87,5 +87,5 @@ Today we shipped 4 milestones:
 | 7 | `env pull` and `env push` (Vercel env var sync) |
 | 8 | `setup` (team onboarding — auto-discover Vercel project, pull env vars) |
 
-DevAssemble now has 9 commands: `launch`, `setup`, `plan`, `teardown`, `env pull`,
+Assembler now has 9 commands: `launch`, `setup`, `plan`, `teardown`, `env pull`,
 `env push`, `creds add/list`, plus the lower-level `execute`/`resume`/`rollback`.

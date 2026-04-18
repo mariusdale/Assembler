@@ -9,7 +9,7 @@ import type {
   TaskResult,
   TaskTemplate,
   VerifyResult,
-} from '@devassemble/types';
+} from '@assembler/types';
 
 import { HttpError } from '../shared/http.js';
 import { ResendClient } from './client.js';
@@ -28,7 +28,7 @@ export const resendProviderPack: ProviderPack = {
             code: 'RESEND_KEY_MISSING',
             message: 'No Resend API key configured.',
             remediation:
-              'Add your Resend API key with "devassemble creds add resend <api-key>". Create one at https://resend.com/api-keys',
+              'Add your Resend API key with "assembler creds add resend <api-key>". Create one at https://resend.com/api-keys',
             url: 'https://resend.com/api-keys',
           },
         ],
@@ -60,7 +60,7 @@ export const resendProviderPack: ProviderPack = {
           code: 'RESEND_KEY_INVALID',
           message: 'Your Resend API key is invalid or has been revoked.',
           remediation:
-            'Generate a new API key at https://resend.com/api-keys and update with "devassemble creds add resend <api-key>".',
+            'Generate a new API key at https://resend.com/api-keys and update with "assembler creds add resend <api-key>".',
           url: 'https://resend.com/api-keys',
         });
       } else {

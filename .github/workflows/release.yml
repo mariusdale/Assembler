@@ -44,14 +44,14 @@ jobs:
         run: pnpm test
 
       - name: Bundle CLI for distribution
-        run: pnpm --filter devassemble run bundle
+        run: pnpm --filter assembler run bundle
 
       - name: Publish to npm
         run: |
           if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
-            pnpm --filter devassemble publish --no-git-checks --access public --tag beta
+            pnpm --filter assembler publish --no-git-checks --access public --tag beta
           else
-            pnpm --filter devassemble publish --no-git-checks --access public
+            pnpm --filter assembler publish --no-git-checks --access public
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

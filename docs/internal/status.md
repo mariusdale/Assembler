@@ -1,10 +1,10 @@
-# DevAssemble Status
+# Assembler Status
 
 Last updated: 2026-04-16
 
 ## Current Position
 
-DevAssemble is a CLI/TUI-first launcher for existing Next.js applications. The immediate focus is making the product polished enough for a live demo and disciplined enough for a controlled beta launch.
+Assembler is a CLI/TUI-first launcher for existing Next.js applications. The immediate focus is making the product polished enough for a live demo and disciplined enough for a controlled beta launch.
 
 ## Active Priorities
 

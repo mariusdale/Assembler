@@ -5,7 +5,7 @@ Target length: 3-5 minutes.
 ## Golden Path
 
 1. Open the demo fixture in a clean working state.
-2. Run `devassemble` and start on the home screen.
+2. Run `assembler` and start on the home screen.
 3. Call out the readiness summary and recommended next action.
 4. Open `Credentials` and show that required launch providers are already connected.
 5. Open `Doctor` and confirm the project gate is ready.

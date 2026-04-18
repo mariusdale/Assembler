@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import Spinner from 'ink-spinner';
-import type { ProjectScan, RunPlan, Task } from '@devassemble/types';
+import type { ProjectScan, RunPlan, Task } from '@assembler/types';
 
 import type { PreflightCheckResults } from '../../app.js';
 import { ConfirmPrompt } from '../components/ConfirmPrompt.js';
@@ -357,7 +357,7 @@ function LaunchBriefing({
         <KeyValue label="Directory" value={projectScan.directory.replace(homeDir, '~')} />
         <KeyValue
           label="Git remote"
-          value={projectScan.gitRemoteUrl ?? 'No remote configured — DevAssemble will create one'}
+          value={projectScan.gitRemoteUrl ?? 'No remote configured — Assembler will create one'}
         />
         <KeyValue
           label="Lockfile"
@@ -473,7 +473,7 @@ function ExecutePhase({
           ) : (
             <Text dimColor>Retry if the failure looks transient, or skip only if you understand the downstream impact.</Text>
           )}
-          <Text dimColor>Recommended next command: devassemble resume {runPlan.id}</Text>
+          <Text dimColor>Recommended next command: assembler resume {runPlan.id}</Text>
           <Box marginTop={1} flexDirection="column">
             <Text>
               <Text bold color="yellow">[r]</Text>etry
@@ -554,7 +554,7 @@ function CompletionPhase({
           {summary.firstFailure.remediation ? (
             <Text dimColor>{summary.firstFailure.remediation}</Text>
           ) : null}
-          <Text dimColor>Recommended next command: devassemble resume {runPlan.id}</Text>
+          <Text dimColor>Recommended next command: assembler resume {runPlan.id}</Text>
         </InfoPanel>
       ) : null}
 

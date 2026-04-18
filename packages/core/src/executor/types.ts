@@ -10,7 +10,7 @@ import type {
   Task,
   TaskResult,
   VerifyResult,
-} from '@devassemble/types';
+} from '@assembler/types';
 
 export interface CredentialRecord {
   provider: string;

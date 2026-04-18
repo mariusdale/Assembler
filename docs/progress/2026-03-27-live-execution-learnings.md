@@ -4,7 +4,7 @@
 
 ### 1. The core product promise is real
 
-We proved the core DevAssemble flow against live services:
+We proved the core Assembler flow against live services:
 
 - create a GitHub repository
 - provision Neon infrastructure
@@ -74,7 +74,7 @@ These now matter as much as provider breadth.
 
 ## Current Product State
 
-As of today, DevAssemble can produce a working live result for the golden path:
+As of today, Assembler can produce a working live result for the golden path:
 
 - prompt -> plan
 - execute against real providers
@@ -92,13 +92,13 @@ The next stage is:
 
 **turn the current golden path into a reliable, repeatable beta product**
 
-That means a new user should be able to run DevAssemble with minimal manual intervention and get a working preview consistently.
+That means a new user should be able to run Assembler with minimal manual intervention and get a working preview consistently.
 
 ## Next Stage Plan
 
 ### 1. Harden provider onboarding and preflight checks
 
-Before execution starts, DevAssemble should validate:
+Before execution starts, Assembler should validate:
 
 - GitHub token scopes
 - Neon key type and project creation ability

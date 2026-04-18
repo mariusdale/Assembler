@@ -5,7 +5,7 @@ import type {
   RunEvent,
   RunPlan,
   Task,
-} from '@devassemble/types';
+} from '@assembler/types';
 
 import type { PreflightCheckResults } from '../app.js';
 
@@ -461,12 +461,12 @@ function buildNextSteps(runPlan: RunPlan, previewUrl?: string): string[] {
   }
 
   if (runPlan.tasks.some((task) => task.provider === 'vercel' && task.status === 'success')) {
-    steps.push('Run `devassemble env pull` if you want the deployed env vars locally.');
-    steps.push('Use `devassemble domain add <domain>` when you are ready to attach a custom domain.');
+    steps.push('Run `assembler env pull` if you want the deployed env vars locally.');
+    steps.push('Use `assembler domain add <domain>` when you are ready to attach a custom domain.');
   }
 
   if (runPlan.tasks.some((task) => task.status === 'success')) {
-    steps.push('Use `devassemble teardown` if this run was only a test launch.');
+    steps.push('Use `assembler teardown` if this run was only a test launch.');
   }
 
   return steps.slice(0, 4);

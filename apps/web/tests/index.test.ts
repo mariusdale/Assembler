@@ -4,7 +4,7 @@ import { webAppPlaceholder } from '../src/index.js';
 
 describe('web placeholder', () => {
   it('documents the future dashboard scope', () => {
-    expect(webAppPlaceholder.name).toBe('devassemble-web');
+    expect(webAppPlaceholder.name).toBe('assembler-web');
     expect(webAppPlaceholder.message).toContain('later milestone');
   });
 });

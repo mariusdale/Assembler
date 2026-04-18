@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ProjectScan, RunEvent, RunPlan, Task } from '@devassemble/types';
+import type { ProjectScan, RunEvent, RunPlan, Task } from '@assembler/types';
 
 import {
   deriveExecutionView,
@@ -83,8 +83,8 @@ describe('run insights', () => {
     const summary = deriveRunOutcomeSummary(runPlan);
 
     expect(summary.kind).toBe('success_with_warnings');
-    expect(summary.previewUrl).toBe('https://preview.devassemble.test');
-    expect(summary.repoUrl).toBe('https://github.com/devassemble/sample-app');
+    expect(summary.previewUrl).toBe('https://preview.assembler.test');
+    expect(summary.repoUrl).toBe('https://github.com/assembler/sample-app');
     expect(summary.warnings[0]).toContain('HTTP 401');
   });
 });
@@ -131,8 +131,8 @@ function createRunPlan(options?: {
     status: 'completed',
     tasks: [
       createTask('github-create-repo', 'Create GitHub repository', 'github', 'create-repo', 'success', {
-        repoUrl: 'https://github.com/devassemble/sample-app',
-        repoFullName: 'devassemble/sample-app',
+        repoUrl: 'https://github.com/assembler/sample-app',
+        repoFullName: 'assembler/sample-app',
       }),
       createTask('neon-create-project', 'Create Neon project', 'neon', 'create-project', 'success', {
         projectName: 'sample-app-db',
@@ -145,10 +145,10 @@ function createRunPlan(options?: {
       }),
       createTask('vercel-deploy-preview', 'Deploy to Vercel preview', 'vercel', 'deploy-preview', 'running', {
         deploymentId: 'dpl_1234567890',
-        previewUrl: 'https://preview.devassemble.test',
+        previewUrl: 'https://preview.assembler.test',
       }),
       createTask('vercel-wait-for-ready', 'Wait for Vercel deployment readiness', 'vercel', 'wait-for-ready', 'success', {
-        previewUrl: 'https://preview.devassemble.test',
+        previewUrl: 'https://preview.assembler.test',
       }),
       createTask('vercel-health-check', 'Verify deployment health', 'vercel', 'health-check', 'success', options?.healthOutputs ?? {
         healthy: true,

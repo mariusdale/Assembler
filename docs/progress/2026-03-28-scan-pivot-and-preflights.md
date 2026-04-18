@@ -2,9 +2,9 @@
 
 ## Context
 
-DevAssemble was transitioning from a prompt/template-based model (user describes an app,
-DevAssemble scaffolds and deploys it) to a scan-based "bring your own repo" model (user
-builds their app, DevAssemble provisions infrastructure and deploys it). A prior agent
+Assembler was transitioning from a prompt/template-based model (user describes an app,
+Assembler scaffolds and deploys it) to a scan-based "bring your own repo" model (user
+builds their app, Assembler provisions infrastructure and deploys it). A prior agent
 (Codex) started the pivot — the new types, scanner, and rule engine existed but the
 wiring was incomplete.
 
@@ -58,7 +58,7 @@ CLI can orchestrate each phase with display.
 - **Executor sleep was a no-op**: `sleep: () => Promise.resolve()` meant retry backoff
   fired instantly. Fixed to use real `setTimeout`.
 - **Neon schema migration was a stub**: `run-schema-migration` returned `{ success: true }`
-  without doing anything. Removed from the scan plan entirely — DevAssemble doesn't run
+  without doing anything. Removed from the scan plan entirely — Assembler doesn't run
   user code. Users run their own migrations post-deploy.
 - **Three pre-existing typecheck errors**: Fixed missing `projectScan` field in test
   ExecutionContext objects, removed spurious `confirmTaskApproval` property.
@@ -92,7 +92,7 @@ CLI can orchestrate each phase with display.
 
 ## What's next
 
-First live end-to-end test of `devassemble launch` against real provider APIs with a
+First live end-to-end test of `assembler launch` against real provider APIs with a
 test Next.js project. Need to:
 
 1. Create a minimal Next.js test fixture

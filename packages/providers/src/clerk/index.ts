@@ -9,7 +9,7 @@ import type {
   TaskResult,
   TaskTemplate,
   VerifyResult,
-} from '@devassemble/types';
+} from '@assembler/types';
 
 import { HttpError } from '../shared/http.js';
 import { ClerkClient } from './client.js';
@@ -28,7 +28,7 @@ export const clerkProviderPack: ProviderPack = {
             code: 'CLERK_SECRET_KEY_MISSING',
             message: 'No Clerk secret key configured.',
             remediation:
-              'Add your Clerk keys with "devassemble creds add clerk token=<secret-key> publishableKey=<pk_...>". Find them at https://dashboard.clerk.com → API Keys.',
+              'Add your Clerk keys with "assembler creds add clerk token=<secret-key> publishableKey=<pk_...>". Find them at https://dashboard.clerk.com → API Keys.',
             url: 'https://dashboard.clerk.com',
           },
         ],
@@ -55,7 +55,7 @@ export const clerkProviderPack: ProviderPack = {
         code: 'CLERK_PUBLISHABLE_KEY_MISSING',
         message: 'No Clerk publishable key configured.',
         remediation:
-          'Add the publishable key: "devassemble creds add clerk token=<secret-key> publishableKey=<pk_...>".',
+          'Add the publishable key: "assembler creds add clerk token=<secret-key> publishableKey=<pk_...>".',
         url: 'https://dashboard.clerk.com',
       });
 
@@ -84,7 +84,7 @@ export const clerkProviderPack: ProviderPack = {
           code: 'CLERK_SECRET_KEY_INVALID',
           message: 'Your Clerk secret key is invalid or has been revoked.',
           remediation:
-            'Generate a new secret key at https://dashboard.clerk.com → API Keys and update with "devassemble creds add clerk token=<secret-key> publishableKey=<pk_...>".',
+            'Generate a new secret key at https://dashboard.clerk.com → API Keys and update with "assembler creds add clerk token=<secret-key> publishableKey=<pk_...>".',
           url: 'https://dashboard.clerk.com',
         });
       } else {

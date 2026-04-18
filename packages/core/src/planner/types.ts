@@ -1,4 +1,4 @@
-import type { AppSpec, RunPlan, Task } from '@devassemble/types';
+import type { AppSpec, RunPlan, Task } from '@assembler/types';
 
 export interface PlannerAssumption {
   code: string;

@@ -9,7 +9,7 @@ import type {
   TaskResult,
   TaskTemplate,
   VerifyResult,
-} from '@devassemble/types';
+} from '@assembler/types';
 
 import { HttpError } from '../shared/http.js';
 import { CloudflareClient } from './client.js';
@@ -28,7 +28,7 @@ export const cloudflareProviderPack: ProviderPack = {
             code: 'CLOUDFLARE_TOKEN_MISSING',
             message: 'No Cloudflare API token configured.',
             remediation:
-              'Add your Cloudflare API token with "devassemble creds add cloudflare <api-token>". Create one at https://dash.cloudflare.com/profile/api-tokens with Zone:Read and DNS:Edit permissions.',
+              'Add your Cloudflare API token with "assembler creds add cloudflare <api-token>". Create one at https://dash.cloudflare.com/profile/api-tokens with Zone:Read and DNS:Edit permissions.',
             url: 'https://dash.cloudflare.com/profile/api-tokens',
           },
         ],

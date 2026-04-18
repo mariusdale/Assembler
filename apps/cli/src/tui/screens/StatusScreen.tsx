@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text } from 'ink';
 import SelectInput from 'ink-select-input';
-import type { RunEvent, RunPlan } from '@devassemble/types';
+import type { RunEvent, RunPlan } from '@assembler/types';
 
 import { ErrorBox } from '../components/ErrorBox.js';
 import { LoadingIndicator } from '../components/LoadingIndicator.js';
@@ -198,7 +198,7 @@ function RunDetail({
           ) : (
             <Text dimColor>Use resume when the failure looks transient or after you correct credentials or provider state.</Text>
           )}
-          <Text dimColor>Recommended next command: devassemble resume {run.id}</Text>
+          <Text dimColor>Recommended next command: assembler resume {run.id}</Text>
         </StatusPanel>
       ) : null}
 

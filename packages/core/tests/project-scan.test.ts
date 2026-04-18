@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
-import type { LockfileCheck } from '@devassemble/types';
+import type { LockfileCheck } from '@assembler/types';
 
 import { createRunPlanFromProjectScan, scanProject } from '../src/index.js';
 
@@ -17,7 +17,7 @@ const LOCKFILE_CHECK_PLACEHOLDER: LockfileCheck = {
 
 describe('project scanner', () => {
   it('detects a Next.js app with DATABASE_URL requirements and no git remote', async () => {
-    const projectDirectory = await mkdtemp(join(tmpdir(), 'devassemble-scan-'));
+    const projectDirectory = await mkdtemp(join(tmpdir(), 'assembler-scan-'));
 
     await writeFile(
       join(projectDirectory, 'package.json'),
@@ -68,7 +68,7 @@ describe('lockfile check', () => {
   }
 
   it('reports no lockfile when none exists', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'devassemble-lock-'));
+    const dir = await mkdtemp(join(tmpdir(), 'assembler-lock-'));
     await createProjectWithPackageJson(dir, { next: '^15.0.0' });
 
     const scan = await scanProject(dir);
@@ -78,7 +78,7 @@ describe('lockfile check', () => {
   });
 
   it('reports in sync for matching npm lockfile', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'devassemble-lock-'));
+    const dir = await mkdtemp(join(tmpdir(), 'assembler-lock-'));
     await createProjectWithPackageJson(dir, { react: '^18.0.0' }, { typescript: '^5.0.0' });
     await writeFile(
       join(dir, 'package-lock.json'),
@@ -103,7 +103,7 @@ describe('lockfile check', () => {
   });
 
   it('detects missing dependencies in npm lockfile', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'devassemble-lock-'));
+    const dir = await mkdtemp(join(tmpdir(), 'assembler-lock-'));
     await createProjectWithPackageJson(dir, { react: '^18.0.0', next: '^15.0.0' });
     await writeFile(
       join(dir, 'package-lock.json'),
@@ -124,7 +124,7 @@ describe('lockfile check', () => {
   });
 
   it('detects extra dependencies in npm lockfile', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'devassemble-lock-'));
+    const dir = await mkdtemp(join(tmpdir(), 'assembler-lock-'));
     await createProjectWithPackageJson(dir, { react: '^18.0.0' });
     await writeFile(
       join(dir, 'package-lock.json'),
@@ -145,7 +145,7 @@ describe('lockfile check', () => {
   });
 
   it('reports in sync for matching pnpm lockfile', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'devassemble-lock-'));
+    const dir = await mkdtemp(join(tmpdir(), 'assembler-lock-'));
     await createProjectWithPackageJson(dir, { next: '^15.0.0' }, { typescript: '^5.0.0' });
     await writeFile(
       join(dir, 'pnpm-lock.yaml'),
@@ -174,7 +174,7 @@ describe('lockfile check', () => {
   });
 
   it('detects missing dependencies in pnpm lockfile', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'devassemble-lock-'));
+    const dir = await mkdtemp(join(tmpdir(), 'assembler-lock-'));
     await createProjectWithPackageJson(dir, { next: '^15.0.0', react: '^18.0.0' });
     await writeFile(
       join(dir, 'pnpm-lock.yaml'),
@@ -198,7 +198,7 @@ describe('lockfile check', () => {
   });
 
   it('reports in sync for matching yarn lockfile', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'devassemble-lock-'));
+    const dir = await mkdtemp(join(tmpdir(), 'assembler-lock-'));
     await createProjectWithPackageJson(dir, { react: '^18.0.0' });
     await writeFile(
       join(dir, 'yarn.lock'),
@@ -219,7 +219,7 @@ describe('lockfile check', () => {
   });
 
   it('finds pnpm lockfile at monorepo root and matches sub-package importer', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'devassemble-mono-'));
+    const root = await mkdtemp(join(tmpdir(), 'assembler-mono-'));
     const subDir = join(root, 'apps', 'my-app');
     await mkdir(subDir, { recursive: true });
     await createProjectWithPackageJson(subDir, { next: '^15.0.0', react: '^18.0.0' });
@@ -256,7 +256,7 @@ describe('lockfile check', () => {
   });
 
   it('skips monorepo lockfile when project is not a workspace member', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'devassemble-mono-'));
+    const root = await mkdtemp(join(tmpdir(), 'assembler-mono-'));
     const outsideDir = join(root, 'external', 'not-in-workspace');
     await mkdir(outsideDir, { recursive: true });
     await createProjectWithPackageJson(outsideDir, { express: '^4.0.0' });
@@ -289,7 +289,7 @@ describe('lockfile check', () => {
 
 describe('scan-driven planner', () => {
   it('builds a BYO-project launch plan with push-code and readiness tasks', async () => {
-    const projectDirectory = await mkdtemp(join(tmpdir(), 'devassemble-plan-'));
+    const projectDirectory = await mkdtemp(join(tmpdir(), 'assembler-plan-'));
     await mkdir(join(projectDirectory, '.git'), { recursive: true });
     await writeFile(
       join(projectDirectory, 'package.json'),

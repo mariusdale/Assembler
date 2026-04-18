@@ -8,7 +8,7 @@ import type {
   TaskResult,
   TaskTemplate,
   VerifyResult,
-} from '@devassemble/types';
+} from '@assembler/types';
 
 export interface PlaceholderActionOutputFactoryContext {
   task: Task;

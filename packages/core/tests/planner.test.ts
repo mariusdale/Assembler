@@ -1,4 +1,4 @@
-import type { AppSpec } from '@devassemble/types';
+import type { AppSpec } from '@assembler/types';
 import { describe, expect, it } from 'vitest';
 
 import {

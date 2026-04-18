@@ -6,10 +6,10 @@ import {
   type CredentialRecord,
   type RunStateStore,
   type SerializedRunPlan,
-} from '@devassemble/core';
-import type { PreviewRecord, RunEvent, RunPlan, Task } from '@devassemble/types';
+} from '@assembler/core';
+import type { PreviewRecord, RunEvent, RunPlan, Task } from '@assembler/types';
 
-const STATE_DIRECTORY_NAME = '.devassemble';
+const STATE_DIRECTORY_NAME = '.assembler';
 const SQLITE_STATE_FILENAME = 'state.db';
 const FILE_STATE_FILENAME = 'state.json';
 
@@ -48,7 +48,7 @@ export function createStateStore(cwd: string): LocalStateStore {
     const fileStore = new FileRunStateStore(fileFilename);
     fileStore.initialize();
 
-    if (process.env.DEVASSEMBLE_DEBUG === '1') {
+    if (process.env.ASSEMBLER_DEBUG === '1') {
       const reason = error instanceof Error ? error.message : String(error);
       console.warn(
         `Warning: SQLite state store unavailable; using file-backed state at ${fileFilename}. ${reason}`,

@@ -9,7 +9,7 @@ import type {
   TaskResult,
   TaskTemplate,
   VerifyResult,
-} from '@devassemble/types';
+} from '@assembler/types';
 
 import { HttpError } from '../shared/http.js';
 import { NeonClient, type NeonProjectResponse } from './client.js';
@@ -35,7 +35,7 @@ export const neonProviderPack: ProviderPack = {
             code: 'NEON_TOKEN_MISSING',
             message: 'No Neon API key configured.',
             remediation:
-              'Add a Neon account-level API key with "devassemble creds add neon <api-key>".',
+              'Add a Neon account-level API key with "assembler creds add neon <api-key>".',
             url: 'https://console.neon.tech/app/settings/api-keys',
           },
         ],
@@ -51,7 +51,7 @@ export const neonProviderPack: ProviderPack = {
           code: 'NEON_TOKEN_INVALID',
           message: 'Your Neon API key is invalid or expired.',
           remediation:
-            'Generate a new account-level API key and update it with "devassemble creds add neon <api-key>".',
+            'Generate a new account-level API key and update it with "assembler creds add neon <api-key>".',
           url: 'https://console.neon.tech/app/settings/api-keys',
         });
       } else if (error instanceof HttpError && error.status === 403) {
@@ -59,7 +59,7 @@ export const neonProviderPack: ProviderPack = {
           code: 'NEON_PROJECT_SCOPED_KEY',
           message: 'Your Neon API key appears to be project-scoped, not account-level.',
           remediation:
-            'DevAssemble needs an account-level Neon API key, not a project-scoped key. Generate one at https://console.neon.tech/app/settings/api-keys',
+            'Assembler needs an account-level Neon API key, not a project-scoped key. Generate one at https://console.neon.tech/app/settings/api-keys',
           url: 'https://console.neon.tech/app/settings/api-keys',
         });
       } else {
@@ -205,7 +205,7 @@ export const neonProviderPack: ProviderPack = {
           throw new Error(
             'Neon project was created but no connection URI was returned. ' +
             'This can happen when the Neon project is still initializing. ' +
-            'Try running "devassemble resume" in a few seconds.',
+            'Try running "assembler resume" in a few seconds.',
           );
         }
         return {
@@ -345,11 +345,11 @@ function toSlug(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 63) || 'devassemble-app';
+    .slice(0, 63) || 'assembler-app';
 }
 
 function getProjectName(ctx: ExecutionContext): string {
-  return ctx.projectScan?.name ?? ctx.appSpec?.name ?? 'devassemble-app';
+  return ctx.projectScan?.name ?? ctx.appSpec?.name ?? 'assembler-app';
 }
 
 async function waitForProjectReady(
@@ -377,7 +377,7 @@ async function waitForProjectReady(
   }
 
   throw new Error(
-    `Timed out waiting for Neon project "${projectId}" to finish active operations. Try running "devassemble resume" in a few seconds.`,
+    `Timed out waiting for Neon project "${projectId}" to finish active operations. Try running "assembler resume" in a few seconds.`,
   );
 }
 

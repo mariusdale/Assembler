@@ -1,4 +1,4 @@
-import type { Credentials, ExecutionContext, Task } from '@devassemble/types';
+import type { Credentials, ExecutionContext, Task } from '@assembler/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { cloudflareProviderPack } from '../src/cloudflare/index.js';

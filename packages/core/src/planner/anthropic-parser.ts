@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { AppSpec } from '@devassemble/types';
+import type { AppSpec } from '@assembler/types';
 
 import type {
   AnthropicAppSpecParserOptions,
@@ -16,7 +16,7 @@ export const APP_SPEC_TOOL_NAME = 'build_app_spec';
 const APP_SPEC_TOOL = {
   name: APP_SPEC_TOOL_NAME,
   description:
-    'Normalize a natural-language request for a B2B web SaaS into the fixed DevAssemble AppSpec and record any assumptions.',
+    'Normalize a natural-language request for a B2B web SaaS into the fixed Assembler AppSpec and record any assumptions.',
   input_schema: {
     type: 'object',
     additionalProperties: false,
@@ -123,7 +123,7 @@ const APP_SPEC_TOOL = {
 } as const;
 
 const SYSTEM_PROMPT = `
-You convert natural-language requests into a strict DevAssemble AppSpec for a fixed-stack B2B web SaaS.
+You convert natural-language requests into a strict Assembler AppSpec for a fixed-stack B2B web SaaS.
 
 Rules:
 - Use the fixed provider set only: Clerk, Stripe, Neon, Resend, Sentry, PostHog, Vercel, Cloudflare.
