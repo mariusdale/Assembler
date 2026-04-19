@@ -14,7 +14,7 @@
     "lint": "PATH=\"$PWD/bin:$PATH\" turbo run lint",
     "typecheck": "PATH=\"$PWD/bin:$PATH\" turbo run typecheck",
     "test": "PATH=\"$PWD/bin:$PATH\" turbo run test",
-    "bundle": "pnpm --filter assembler run bundle",
+    "bundle": "pnpm --filter @mariusdale/assembler run bundle",
     "release": "pnpm build && pnpm bundle"
   },
   "devDependencies": {
