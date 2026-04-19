@@ -1,14 +1,17 @@
 {
-  "name": "assembler",
+  "name": "@mariusdale/assembler",
   "version": "0.1.0",
   "description": "Launch your app from the terminal. Scan, provision, and deploy — no dashboard-hopping.",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/assembler/assembler.git"
+    "url": "git+https://github.com/mariusdale/Assembler.git"
   },
-  "homepage": "https://assembler.dev",
+  "homepage": "https://github.com/mariusdale/Assembler",
   "keywords": [
     "cli",
     "deploy",
