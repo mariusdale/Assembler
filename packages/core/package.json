@@ -1,5 +1,5 @@
 {
-  "name": "@devassemble/core",
+  "name": "@assembler/core",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -21,7 +21,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@devassemble/types": "workspace:*",
+    "@assembler/types": "workspace:*",
     "@anthropic-ai/sdk": "^0.52.0",
     "better-sqlite3": "^12.4.1"
   }

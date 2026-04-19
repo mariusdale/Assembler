@@ -2,7 +2,7 @@
 
 ## What was done
 
-Implemented the Stripe provider as the fourth live provider in DevAssemble, replacing
+Implemented the Stripe provider as the fourth live provider in Assembler, replacing
 the placeholder. The provider follows the same pattern as GitHub/Neon/Vercel.
 
 ### New files
@@ -38,7 +38,7 @@ the placeholder. The provider follows the same pattern as GitHub/Neon/Vercel.
 
 ### Single capture-keys action (not create-product/configure-webhook)
 
-Per the next phase plan, DevAssemble provisions infrastructure and syncs credentials.
+Per the next phase plan, Assembler provisions infrastructure and syncs credentials.
 It does NOT create Stripe products, prices, or webhook endpoints — those are business
 logic decisions the user makes. The Stripe provider:
 

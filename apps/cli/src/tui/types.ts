@@ -1,4 +1,4 @@
-import type { ProjectScan, RunPlan } from '@devassemble/types';
+import type { ProjectScan, RunPlan } from '@assembler/types';
 
 export type ScreenName =
   | 'home'

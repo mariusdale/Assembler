@@ -2,7 +2,7 @@
 
 ## Short Invite
 
-I am opening the beta for **DevAssemble**, a terminal-first launcher for existing Next.js applications. It scans the current project, provisions the required infrastructure, and deploys without requiring manual provider dashboard work.
+I am opening the beta for **Assembler**, a terminal-first launcher for existing Next.js applications. It scans the current project, provisions the required infrastructure, and deploys without requiring manual provider dashboard work.
 
 I am looking for teams willing to:
 

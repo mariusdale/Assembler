@@ -1,4 +1,4 @@
-import type { AppSpec, Credentials, ExecutionContext, Task } from '@devassemble/types';
+import type { AppSpec, Credentials, ExecutionContext, Task } from '@assembler/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { sentryProviderPack } from '../src/sentry/index.js';

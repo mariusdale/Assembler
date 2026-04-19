@@ -1,5 +1,5 @@
 export const webAppPlaceholder = {
-  name: 'devassemble-web',
+  name: 'assembler-web',
   message: 'Operator dashboard support is planned for a later milestone.',
 } as const;
 

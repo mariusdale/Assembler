@@ -1,5 +1,5 @@
 {
-  "name": "@devassemble/providers",
+  "name": "@assembler/providers",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -21,6 +21,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@devassemble/types": "workspace:*"
+    "@assembler/types": "workspace:*"
   }
 }

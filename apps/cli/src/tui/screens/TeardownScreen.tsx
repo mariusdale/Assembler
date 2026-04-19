@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Text } from 'ink';
-import type { RunPlan } from '@devassemble/types';
+import type { RunPlan } from '@assembler/types';
 import { useCliApp } from '../context.js';
 import { useNavigation } from '../hooks/use-navigation.js';
 import { LoadingIndicator } from '../components/LoadingIndicator.js';

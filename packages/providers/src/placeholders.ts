@@ -1,4 +1,4 @@
-import type { ProviderPack } from '@devassemble/types';
+import type { ProviderPack } from '@assembler/types';
 
 import { createPlaceholderProviderPack } from './shared/placeholder.js';
 

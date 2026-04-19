@@ -159,9 +159,9 @@ export function DoctorScreen({
           <Text dimColor>Fix provider issues before retrying launch or preview flows.</Text>
         ) : null}
         {overallHealthy ? (
-          <Text dimColor>Recommended next command: devassemble launch</Text>
+          <Text dimColor>Recommended next command: assembler launch</Text>
         ) : (
-          <Text dimColor>Recommended next command: devassemble doctor</Text>
+          <Text dimColor>Recommended next command: assembler doctor</Text>
         )}
       </Panel>
 

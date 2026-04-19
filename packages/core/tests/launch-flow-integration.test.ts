@@ -9,7 +9,7 @@ import type {
   ProviderPack,
   Task,
   TaskResult,
-} from '@devassemble/types';
+} from '@assembler/types';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { createExecutor, createRunPlanFromProjectScan, SqliteRunStateStore } from '../src/index.js';
@@ -88,7 +88,7 @@ afterEach(() => {
 });
 
 function createStore(): SqliteRunStateStore {
-  const dir = mkdtempSync(join(tmpdir(), 'devassemble-launch-int-'));
+  const dir = mkdtempSync(join(tmpdir(), 'assembler-launch-int-'));
   tempDirs.push(dir);
   return new SqliteRunStateStore({ filename: join(dir, 'state.db') });
 }

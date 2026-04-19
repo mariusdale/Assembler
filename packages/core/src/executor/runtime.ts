@@ -6,7 +6,7 @@ import type {
   RunPlan,
   Task,
   TaskStatus,
-} from '@devassemble/types';
+} from '@assembler/types';
 
 import type {
   ApprovalRequest,

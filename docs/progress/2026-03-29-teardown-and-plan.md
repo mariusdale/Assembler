@@ -2,19 +2,19 @@
 
 ## What was done
 
-### 1. `devassemble plan` command (dry run)
+### 1. `assembler plan` command (dry run)
 
 New command that runs the full scan → preflight → plan pipeline but stops before
 executing. Shows:
 - Detected framework and services
 - Credential validation results
 - Full execution plan with task details and cost estimates
-- The saved run ID (can be used with `devassemble execute <runId>`)
+- The saved run ID (can be used with `assembler execute <runId>`)
 
-This lets users verify what DevAssemble will do before committing. Lowers the barrier
+This lets users verify what Assembler will do before committing. Lowers the barrier
 to trying the tool — "look before you leap."
 
-### 2. `devassemble teardown` command
+### 2. `assembler teardown` command
 
 New command that rolls back all resources created by a launch run:
 - Finds the latest run (or accepts a specific run ID)
@@ -27,11 +27,11 @@ This is the confidence multiplier — users know they can always undo a launch.
 
 ### 3. Deployment Protection warning
 
-The completion summary after `devassemble launch` now:
+The completion summary after `assembler launch` now:
 - Shows Stripe mode (test/live) when Stripe keys were synced
 - Warns about Vercel Deployment Protection (preview URLs return 401)
 - Explains how to disable it (Dashboard → Project Settings → Deployment Protection)
-- Shows a hint about `devassemble teardown`
+- Shows a hint about `assembler teardown`
 
 ### 4. Detected services display improvement
 
@@ -56,7 +56,7 @@ principle.
 ### Plan saves to state store
 
 The `plan` command saves the RunPlan to the state store even though it doesn't execute.
-This means a user could run `devassemble plan` to preview, then `devassemble execute`
+This means a user could run `assembler plan` to preview, then `assembler execute`
 to run the saved plan. This is intentional — it supports a cautious workflow.
 
 ## Test results

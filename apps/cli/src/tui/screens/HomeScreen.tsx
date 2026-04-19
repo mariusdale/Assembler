@@ -22,7 +22,7 @@ const SECONDARY_ITEMS: MenuItem[] = [
   { label: 'Environment Sync', value: 'env', description: 'Pull or push environment variables' },
   { label: 'Teardown', value: 'teardown', description: 'Remove provisioned resources' },
   { label: 'Help', value: 'help', description: 'Show command and navigation help' },
-  { label: 'Quit', value: 'quit', description: 'Exit DevAssemble' },
+  { label: 'Quit', value: 'quit', description: 'Exit Assembler' },
 ];
 
 type ReadinessTone = 'ready' | 'action_required' | 'blocked';
@@ -227,7 +227,7 @@ function buildAssessment(
       projectPath,
       tone: 'blocked',
       summary: 'Blocked: unsupported project type',
-      detail: 'DevAssemble currently supports production launch workflows for existing Next.js applications only.',
+      detail: 'Assembler currently supports production launch workflows for existing Next.js applications only.',
       recommendedAction: 'doctor',
     };
   }
@@ -271,7 +271,7 @@ function buildAssessment(
       projectPath,
       tone: 'action_required',
       summary: 'Action required: connect launch credentials',
-      detail: `DevAssemble needs ${missingRequiredCredentials.join(' and ')} before it can launch this project.`,
+      detail: `Assembler needs ${missingRequiredCredentials.join(' and ')} before it can launch this project.`,
       recommendedAction: 'creds',
     };
   }

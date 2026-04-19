@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import { createProgram } from '../src/cli.js';
 
-describe('devassemble CLI', () => {
+describe('assembler CLI', () => {
   it('shows the curated public command surface in help output', () => {
     const help = createProgram().helpInformation();
 
-    expect(help).toContain('devassemble');
+    expect(help).toContain('assembler');
     expect(help).toContain('launch');
     expect(help).toContain('doctor');
     expect(help).toContain('status');

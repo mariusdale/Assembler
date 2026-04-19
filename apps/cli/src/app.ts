@@ -10,9 +10,9 @@ import {
   createExecutor,
   planPrompt,
   scanProject,
-} from '@devassemble/core';
-import { createProviderRegistry, NeonClient, VercelClient } from '@devassemble/providers';
-import type { AppSpec, Credentials, DiscoveryResult, PreviewRecord, ProjectScan, RunEvent, RunPlan } from '@devassemble/types';
+} from '@assembler/core';
+import { createProviderRegistry, NeonClient, VercelClient } from '@assembler/providers';
+import type { AppSpec, Credentials, DiscoveryResult, PreviewRecord, ProjectScan, RunEvent, RunPlan } from '@assembler/types';
 
 import { createStateStore, type LocalStateStore } from './state-store.js';
 
@@ -27,7 +27,7 @@ export interface LaunchResult {
 export interface DoctorCheckResult {
   provider: string;
   hasCredentials: boolean;
-  preflightResult?: import('@devassemble/types').PreflightResult;
+  preflightResult?: import('@assembler/types').PreflightResult;
 }
 
 export interface DoctorResult {
@@ -153,7 +153,7 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       const parser = process.env.ANTHROPIC_API_KEY
         ? createAnthropicAppSpecParser({
             client: createAnthropicClient(process.env.ANTHROPIC_API_KEY),
-            model: process.env.DEVASSEMBLE_ANTHROPIC_MODEL ?? 'claude-sonnet-4-20250514',
+            model: process.env.ASSEMBLER_ANTHROPIC_MODEL ?? 'claude-sonnet-4-20250514',
           })
         : createHeuristicParser();
 
@@ -225,7 +225,7 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       const vercelRecord = stateStore.getCredentialRecord('vercel');
       if (!vercelRecord) {
         throw new Error(
-          'Vercel credentials are required for setup. Add them with "devassemble creds add vercel token=<tok>".',
+          'Vercel credentials are required for setup. Add them with "assembler creds add vercel token=<tok>".',
         );
       }
 
@@ -251,7 +251,7 @@ export function createCliApp(cwd = process.cwd()): CliApp {
 
       if (!vercelProjectName) {
         throw new Error(
-          'Could not find a Vercel project linked to this repository. Run "devassemble launch" first to create one.',
+          'Could not find a Vercel project linked to this repository. Run "assembler launch" first to create one.',
         );
       }
 
@@ -327,13 +327,13 @@ export function createCliApp(cwd = process.cwd()): CliApp {
 
       if (branchName === 'main' || branchName === 'master') {
         throw new Error(
-          `Branch "${branchName}" is the production branch. Use "devassemble launch" instead, or switch to a feature branch.`,
+          `Branch "${branchName}" is the production branch. Use "assembler launch" instead, or switch to a feature branch.`,
         );
       }
 
       const latestRunId = findLatestRunId(stateStore);
       if (!latestRunId) {
-        throw new Error('No launch run found. Run "devassemble launch" first.');
+        throw new Error('No launch run found. Run "assembler launch" first.');
       }
       const run = stateStore.loadRun(latestRunId);
       if (!run) {
@@ -370,7 +370,7 @@ export function createCliApp(cwd = process.cwd()): CliApp {
         (t) => t.provider === 'neon' && t.action === 'create-project' && t.status === 'success',
       );
 
-      const previewTasks: import('@devassemble/types').Task[] = [];
+      const previewTasks: import('@assembler/types').Task[] = [];
 
       if (neonTask) {
         const neonProjectId = String(neonTask.outputs.projectId);
@@ -432,9 +432,9 @@ export function createCliApp(cwd = process.cwd()): CliApp {
 
       const result = await executor.execute({ runPlan: previewPlan });
 
-      const neonBranchTask = result.runPlan.tasks.find((t: import('@devassemble/types').Task) => t.id === 'neon-create-preview-branch');
-      const deployTask = result.runPlan.tasks.find((t: import('@devassemble/types').Task) => t.id === 'vercel-deploy-branch-preview');
-      const waitTask = result.runPlan.tasks.find((t: import('@devassemble/types').Task) => t.id === 'vercel-wait-for-ready');
+      const neonBranchTask = result.runPlan.tasks.find((t: import('@assembler/types').Task) => t.id === 'neon-create-preview-branch');
+      const deployTask = result.runPlan.tasks.find((t: import('@assembler/types').Task) => t.id === 'vercel-deploy-branch-preview');
+      const waitTask = result.runPlan.tasks.find((t: import('@assembler/types').Task) => t.id === 'vercel-wait-for-ready');
 
       const previewUrl =
         (waitTask?.outputs.previewUrl as string | undefined) ??
@@ -473,7 +473,7 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       const previewRecord = stateStore.loadPreview(branchName);
       if (!previewRecord) {
         throw new Error(
-          `No active preview found for branch "${branchName}". Run "devassemble preview" first.`,
+          `No active preview found for branch "${branchName}". Run "assembler preview" first.`,
         );
       }
 
@@ -500,7 +500,7 @@ export function createCliApp(cwd = process.cwd()): CliApp {
     domainAdd: async (domain: string): Promise<DomainAddResult> => {
       const latestRunId = findLatestRunId(stateStore);
       if (!latestRunId) {
-        throw new Error('No launch run found. Run "devassemble launch" first to create a project.');
+        throw new Error('No launch run found. Run "assembler launch" first to create a project.');
       }
       const run = stateStore.loadRun(latestRunId);
       if (!run) {
@@ -511,7 +511,7 @@ export function createCliApp(cwd = process.cwd()): CliApp {
         (t) => t.provider === 'vercel' && t.action === 'create-project' && t.status === 'success',
       );
       if (!vercelTask) {
-        throw new Error('No Vercel project found in the latest run. Run "devassemble launch" first.');
+        throw new Error('No Vercel project found in the latest run. Run "assembler launch" first.');
       }
       const projectId = String(vercelTask.outputs.projectId);
 
@@ -532,9 +532,9 @@ export function createCliApp(cwd = process.cwd()): CliApp {
 
       const result = await executor.execute({ runPlan: domainPlan });
 
-      const dnsTask = result.runPlan.tasks.find((t: import('@devassemble/types').Task) => t.id === 'cloudflare-create-dns-record');
-      const vercelDomainTask = result.runPlan.tasks.find((t: import('@devassemble/types').Task) => t.id === 'vercel-add-domain');
-      const verifyTask = result.runPlan.tasks.find((t: import('@devassemble/types').Task) => t.id === 'cloudflare-verify-dns');
+      const dnsTask = result.runPlan.tasks.find((t: import('@assembler/types').Task) => t.id === 'cloudflare-create-dns-record');
+      const vercelDomainTask = result.runPlan.tasks.find((t: import('@assembler/types').Task) => t.id === 'vercel-add-domain');
+      const verifyTask = result.runPlan.tasks.find((t: import('@assembler/types').Task) => t.id === 'cloudflare-verify-dns');
 
       return {
         domain,
@@ -618,7 +618,7 @@ function createHeuristicParser(): {
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
-        .slice(0, 40) || 'devassemble-app';
+        .slice(0, 40) || 'assembler-app';
       const mentionsPayments =
         /\b(subscription|subscriptions|billing|payments|payment|stripe)\b/i.test(prompt);
 
@@ -742,7 +742,7 @@ function makePreviewTask(
   dependsOn: string[],
   params: Record<string, unknown>,
   risk: 'low' | 'medium' | 'high' = 'low',
-): import('@devassemble/types').Task {
+): import('@assembler/types').Task {
   return {
     id,
     name,
@@ -768,7 +768,7 @@ function createDomainPlan(domain: string, vercelProjectId: string, parentRunId: 
     dependsOn: string[],
     params: Record<string, unknown>,
     risk: 'low' | 'medium' | 'high' = 'medium',
-  ): import('@devassemble/types').Task => ({
+  ): import('@assembler/types').Task => ({
     id,
     name,
     provider,
@@ -853,7 +853,7 @@ function resolveCredentials(
 }
 
 export interface PreflightCheckResults {
-  results: Map<string, import('@devassemble/types').PreflightResult>;
+  results: Map<string, import('@assembler/types').PreflightResult>;
   allValid: boolean;
 }
 
@@ -865,7 +865,7 @@ export async function runPreflightChecks(
   const providers = [...new Set(runPlan.tasks.map((task) => task.provider))]
     .filter((provider) => REQUIRED_LIVE_PROVIDERS.has(provider));
 
-  const results = new Map<string, import('@devassemble/types').PreflightResult>();
+  const results = new Map<string, import('@assembler/types').PreflightResult>();
 
   for (const provider of providers) {
     const pack = providerRegistry[provider];
@@ -881,7 +881,7 @@ export async function runPreflightChecks(
           {
             code: `${provider.toUpperCase()}_TOKEN_MISSING`,
             message: `No ${provider} credential configured.`,
-            remediation: `Add it with "devassemble creds add ${provider} <token>".`,
+            remediation: `Add it with "assembler creds add ${provider} <token>".`,
           },
         ],
       });
@@ -904,7 +904,7 @@ export async function runPreflightChecks(
             {
               code: `${provider.toUpperCase()}_DISCOVERY_FAILED`,
               message: discovery.error ?? `Credential check failed for provider "${provider}".`,
-              remediation: `Check your ${provider} credentials with "devassemble discover ${provider}".`,
+              remediation: `Check your ${provider} credentials with "assembler discover ${provider}".`,
             },
           ],
     });
@@ -934,7 +934,7 @@ function resolveVercelProject(
 ): { client: VercelClient; projectName: string } {
   const targetRunId = runId ?? stateStore.listRuns()[0]?.id;
   if (!targetRunId) {
-    throw new Error('No runs found. Run "devassemble launch" first.');
+    throw new Error('No runs found. Run "assembler launch" first.');
   }
 
   const runPlan = stateStore.loadRun(targetRunId);
@@ -952,14 +952,14 @@ function resolveVercelProject(
 
   if (!projectName) {
     throw new Error(
-      'No Vercel project found in this run. Run "devassemble launch" first to create one.',
+      'No Vercel project found in this run. Run "assembler launch" first to create one.',
     );
   }
 
   const vercelRecord = stateStore.getCredentialRecord('vercel');
   if (!vercelRecord) {
     throw new Error(
-      'No Vercel credentials found. Add them with "devassemble creds add vercel token=<tok>".',
+      'No Vercel credentials found. Add them with "assembler creds add vercel token=<tok>".',
     );
   }
 
@@ -980,7 +980,7 @@ function toSlug(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 63) || 'devassemble-app';
+    .slice(0, 63) || 'assembler-app';
 }
 
 function readLocalEnvFile(cwd: string): Record<string, string> {
@@ -1009,7 +1009,7 @@ function parseEnvFile(content: string): Record<string, string> {
 }
 
 function formatEnvFile(variables: Record<string, string>): string {
-  const lines = ['# Generated by devassemble env pull', `# ${new Date().toISOString()}`, ''];
+  const lines = ['# Generated by assembler env pull', `# ${new Date().toISOString()}`, ''];
   const sorted = Object.entries(variables).sort(([a], [b]) => a.localeCompare(b));
   for (const [key, value] of sorted) {
     lines.push(`${key}=${value}`);

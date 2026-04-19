@@ -1,4 +1,4 @@
-import type { Credentials } from '@devassemble/types';
+import type { Credentials } from '@assembler/types';
 
 import { HttpError, requestJson, requestJsonWithHeaders } from '../shared/http.js';
 

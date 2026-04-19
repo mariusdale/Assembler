@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import { Command } from 'commander';
 import ora from 'ora';
 
-import type { ProjectScan, RunPlan, Task } from '@devassemble/types';
+import type { ProjectScan, RunPlan, Task } from '@assembler/types';
 
 import { createCliApp } from './app.js';
 import type { PreflightCheckResults, EnvPullResult, EnvPushResult, DomainAddResult, PreviewResult, PreviewTeardownResult, DoctorResult } from './app.js';
@@ -37,13 +37,13 @@ export function createProgram(): Command {
   };
 
   program
-    .name('devassemble')
+    .name('assembler')
     .description('Launch and operate your existing Next.js application from the terminal.')
     .version('0.1.0')
     .showHelpAfterError()
     .addHelpText(
       'after',
-      '\nPrimary workflow: run `devassemble` for the TUI, then use Credentials, Doctor, Launch, and Status to manage the project lifecycle.\n',
+      '\nPrimary workflow: run `assembler` for the TUI, then use Credentials, Doctor, Launch, and Status to manage the project lifecycle.\n',
     );
 
   program
@@ -172,7 +172,7 @@ export function createProgram(): Command {
       const cliApp = getApp();
 
       console.log();
-      console.log(chalk.bold('Welcome to DevAssemble!') + " Let's set up your provider credentials.");
+      console.log(chalk.bold('Welcome to Assembler!') + " Let's set up your provider credentials.");
       console.log(chalk.dim('This shortcut remains available for CLI-first onboarding. The Credentials screen is the primary path in the TUI.'));
       console.log();
 
@@ -180,21 +180,21 @@ export function createProgram(): Command {
         {
           provider: 'github',
           label: 'GitHub',
-          description: 'DevAssemble needs a GitHub Personal Access Token with the `repo` scope.',
-          url: 'https://github.com/settings/tokens/new?scopes=repo&description=DevAssemble',
+          description: 'Assembler needs a GitHub Personal Access Token with the `repo` scope.',
+          url: 'https://github.com/settings/tokens/new?scopes=repo&description=Assembler',
           entries: (token: string) => [token],
         },
         {
           provider: 'neon',
           label: 'Neon',
-          description: 'DevAssemble needs an account-level Neon API key (not project-scoped).',
+          description: 'Assembler needs an account-level Neon API key (not project-scoped).',
           url: 'https://console.neon.tech/app/settings/api-keys',
           entries: (token: string) => [token],
         },
         {
           provider: 'vercel',
           label: 'Vercel',
-          description: 'DevAssemble needs a Vercel API token.',
+          description: 'Assembler needs a Vercel API token.',
           url: 'https://vercel.com/account/tokens',
           entries: (token: string) => [`token=${token}`],
         },
@@ -231,7 +231,7 @@ export function createProgram(): Command {
 
         const token = await promptSecret(`  Paste your ${step.label === 'Neon' ? 'API key' : 'token'}: `);
         if (!token) {
-          console.log(chalk.yellow(`  Skipped ${step.label}. You can add it later with "devassemble creds add ${step.provider} <token>".`));
+          console.log(chalk.yellow(`  Skipped ${step.label}. You can add it later with "assembler creds add ${step.provider} <token>".`));
           console.log();
           continue;
         }
@@ -245,7 +245,7 @@ export function createProgram(): Command {
             spinner.succeed(`  ${step.label}: valid${discovery.accountName ? ` (${discovery.accountName})` : ''}`);
           } else {
             spinner.fail(`  ${step.label}: credential was rejected`);
-            console.log(chalk.yellow(`  You can update it later with "devassemble creds add ${step.provider} <token>".`));
+            console.log(chalk.yellow(`  You can update it later with "assembler creds add ${step.provider} <token>".`));
           }
         } catch (error) {
           spinner.fail(`  ${step.label}: validation failed`);
@@ -261,7 +261,7 @@ export function createProgram(): Command {
         console.log();
       }
 
-      console.log(chalk.green('Setup complete!') + ' Run ' + chalk.cyan('devassemble launch') + ' from any project directory to deploy.');
+      console.log(chalk.green('Setup complete!') + ' Run ' + chalk.cyan('assembler launch') + ' from any project directory to deploy.');
     });
 
   program
@@ -320,7 +320,7 @@ export function createProgram(): Command {
 
       console.log();
       console.log(chalk.dim(`Run ID: ${runPlan.id}`));
-      console.log(chalk.dim('Run "devassemble launch" to execute this plan.'));
+      console.log(chalk.dim('Run "assembler launch" to execute this plan.'));
     });
 
   program
@@ -527,7 +527,7 @@ export function createProgram(): Command {
           console.log(`  Database:    ${chalk.dim('Branch DB connected via Vercel env vars')}`);
         }
         console.log();
-        console.log(chalk.dim('Run "devassemble preview-teardown" to clean up.'));
+        console.log(chalk.dim('Run "assembler preview-teardown" to clean up.'));
       } catch (error) {
         spinner.fail('Preview creation failed');
         printError(error);
@@ -629,7 +629,7 @@ export function createProgram(): Command {
         return;
       }
 
-      console.log(chalk.bold('DevAssemble Doctor'));
+      console.log(chalk.bold('Assembler Doctor'));
       console.log();
       console.log(`  Node.js: ${chalk.green(result.nodeVersion)}`);
       console.log();
@@ -660,7 +660,7 @@ export function createProgram(): Command {
       if (result.allHealthy) {
         console.log(chalk.green('All configured providers are healthy.'));
       } else {
-        console.log(chalk.yellow('Some providers have issues. Fix them before running "devassemble launch".'));
+        console.log(chalk.yellow('Some providers have issues. Fix them before running "assembler launch".'));
         process.exitCode = 1;
       }
     });
@@ -804,7 +804,7 @@ function printCompletionSummary(scan: ProjectScan, plan: RunPlan): void {
   }
 
   console.log();
-  console.log(chalk.dim(`Recommended next command: devassemble teardown`));
+  console.log(chalk.dim(`Recommended next command: assembler teardown`));
 }
 
 function describeTeardownActions(tasks: Task[]): string[] {

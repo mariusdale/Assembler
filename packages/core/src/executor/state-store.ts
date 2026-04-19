@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import type { PreviewRecord, RunEvent, RunPlan, Task } from '@devassemble/types';
+import type { PreviewRecord, RunEvent, RunPlan, Task } from '@assembler/types';
 
 import type { CredentialRecord, RunStateStore, SerializedRunPlan } from './types.js';
 

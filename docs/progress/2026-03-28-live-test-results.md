@@ -2,7 +2,7 @@
 
 ## What happened
 
-Ran `devassemble launch` against real provider APIs for the first time using the
+Ran `assembler launch` against real provider APIs for the first time using the
 scan-based "bring your own repo" flow. Used a minimal Next.js test fixture with
 a `.env.example` declaring `DATABASE_URL`.
 

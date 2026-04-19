@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { SqliteRunStateStore } from '@devassemble/core';
+import { SqliteRunStateStore } from '@assembler/core';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { createCliApp } from '../src/app.js';
@@ -26,11 +26,11 @@ describe('cli app', () => {
     await app.addCredential('vercel', [
       'token=vercel_test_token',
       'teamId=team_123',
-      'slug=devassemble-team',
+      'slug=assembler-team',
     ]);
 
     const store = new SqliteRunStateStore({
-      filename: resolve(cwd, '.devassemble', 'state.db'),
+      filename: resolve(cwd, '.assembler', 'state.db'),
     });
     store.initialize();
 
@@ -39,7 +39,7 @@ describe('cli app', () => {
     expect(record?.reference).toBe('vercel_test_token');
     expect(record?.metadata).toMatchObject({
       teamId: 'team_123',
-      slug: 'devassemble-team',
+      slug: 'assembler-team',
     });
   });
 
@@ -55,7 +55,7 @@ describe('cli app', () => {
 });
 
 function createTempDirectory(): string {
-  const directory = mkdtempSync(join(tmpdir(), 'devassemble-cli-'));
+  const directory = mkdtempSync(join(tmpdir(), 'assembler-cli-'));
   tempDirectories.push(directory);
   return directory;
 }

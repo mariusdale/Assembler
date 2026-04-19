@@ -1,21 +1,21 @@
-# DevAssemble — Codex Implementation Prompt
+# Assembler — Codex Implementation Prompt
 
-## What DevAssemble Is
+## What Assembler Is
 
-DevAssemble is a CLI tool that automates the infrastructure provisioning and deployment lifecycle for developers who have already written their application code. It is NOT a code generator. It does NOT compete with Claude Code or Codex for writing application code. It solves the problem that comes AFTER the code is written: the 2-4 hours of manual dashboard-hopping across Vercel, Neon, Stripe, Cloudflare, and other services to provision infrastructure, generate API keys, wire environment variables, configure webhooks, and deploy.
+Assembler is a CLI tool that automates the infrastructure provisioning and deployment lifecycle for developers who have already written their application code. It is NOT a code generator. It does NOT compete with Claude Code or Codex for writing application code. It solves the problem that comes AFTER the code is written: the 2-4 hours of manual dashboard-hopping across Vercel, Neon, Stripe, Cloudflare, and other services to provision infrastructure, generate API keys, wire environment variables, configure webhooks, and deploy.
 
-The core user story: A founder finishes building their Next.js app with Claude Code. They run `devassemble launch` from their project directory. DevAssemble detects what the project needs, builds an execution plan, asks for approval, and provisions everything — repo, database, hosting, environment variables, deployment — without the founder ever opening a browser dashboard.
+The core user story: A founder finishes building their Next.js app with Claude Code. They run `assembler launch` from their project directory. Assembler detects what the project needs, builds an execution plan, asks for approval, and provisions everything — repo, database, hosting, environment variables, deployment — without the founder ever opening a browser dashboard.
 
-## What DevAssemble Is NOT
+## What Assembler Is NOT
 
 - It is NOT a code generator or scaffolder. The user brings their own code.
 - It is NOT a template engine. There is no golden-path app template. The user's existing project IS the input.
 - It does NOT use an LLM to generate application code. The only LLM usage is in intent parsing (understanding what the user wants to provision) and optionally in project detection (scanning the repo to infer required services).
-- It does NOT create provider accounts on behalf of users. Users supply their own API keys. DevAssemble orchestrates what happens with those keys.
+- It does NOT create provider accounts on behalf of users. Users supply their own API keys. Assembler orchestrates what happens with those keys.
 
 ## Deadline Context
 
-There is a live demo next week. Every implementation decision should optimize for a working end-to-end demo of the primary flow: user points DevAssemble at their existing project → plan is generated → infrastructure is provisioned → app is deployed and live. Polish, breadth, and edge cases come after this works reliably.
+There is a live demo next week. Every implementation decision should optimize for a working end-to-end demo of the primary flow: user points Assembler at their existing project → plan is generated → infrastructure is provisioned → app is deployed and live. Polish, breadth, and edge cases come after this works reliably.
 
 ---
 
@@ -24,7 +24,7 @@ There is a live demo next week. Every implementation decision should optimize fo
 ### Monorepo Structure
 
 ```
-devassemble/
+assembler/
 ├── apps/
 │   └── cli/                  # CLI entry point (commander.js)
 ├── packages/
@@ -61,7 +61,7 @@ This is the ONLY flow that matters for the demo. Everything else is secondary.
 
 ### Step 1: Project Detection
 
-When the user runs `devassemble launch` (or `devassemble init`) from their project directory, DevAssemble scans the project to determine:
+When the user runs `assembler launch` (or `assembler init`) from their project directory, Assembler scans the project to determine:
 
 1. **Framework**: Next.js, Remix, Astro, plain Node, etc. (v1: Next.js only is fine)
 2. **Database needs**: Does the project reference DATABASE_URL, Prisma, Drizzle, or any ORM config?
@@ -150,7 +150,7 @@ interface EnvVarRequirement {
   name: string;
   provider?: string;       // which provider generates this, if known
   source: string;          // where it was detected (.env.example, package.json, etc.)
-  isAutoProvisionable: boolean;  // can DevAssemble generate this?
+  isAutoProvisionable: boolean;  // can Assembler generate this?
 }
 
 // Execution types (keep from original plan — these are solid)
@@ -225,19 +225,19 @@ interface ExecutionContext {
 
 | Command | Behavior |
 | --- | --- |
-| `devassemble launch` | The primary command. Scans current directory, generates plan, asks for approval, executes. Combines init + execute into one flow. |
-| `devassemble creds add <provider>` | Guided credential setup. Opens the exact URL where the user generates their API key, explains what scopes/permissions are needed, waits for paste, validates immediately. |
-| `devassemble creds list` | Shows configured providers with validation status (valid/expired/missing scopes). Never shows raw key values. |
-| `devassemble status` | Shows current run status: completed tasks, pending tasks, failures, live URLs. |
-| `devassemble resume` | Resume a failed run from last checkpoint. |
+| `assembler launch` | The primary command. Scans current directory, generates plan, asks for approval, executes. Combines init + execute into one flow. |
+| `assembler creds add <provider>` | Guided credential setup. Opens the exact URL where the user generates their API key, explains what scopes/permissions are needed, waits for paste, validates immediately. |
+| `assembler creds list` | Shows configured providers with validation status (valid/expired/missing scopes). Never shows raw key values. |
+| `assembler status` | Shows current run status: completed tasks, pending tasks, failures, live URLs. |
+| `assembler resume` | Resume a failed run from last checkpoint. |
 
 ### Post-demo commands (implement later)
 
 | Command | Behavior |
 | --- | --- |
-| `devassemble rollback` | Rollback the current run in reverse dependency order. |
-| `devassemble redeploy` | Trigger a fresh deployment for the current run's project. |
-| `devassemble plan` | Generate and display a plan without executing (dry run). |
+| `assembler rollback` | Rollback the current run in reverse dependency order. |
+| `assembler redeploy` | Trigger a fresh deployment for the current run's project. |
+| `assembler plan` | Generate and display a plan without executing (dry run). |
 
 ### CLI UX
 
@@ -305,7 +305,7 @@ Known issues from prior live testing (already fixed, preserve these fixes):
 Before ANY execution begins, run ALL provider preflight checks. This is the single most important quality-of-life feature for the demo.
 
 ```
-$ devassemble launch
+$ assembler launch
 
 Scanning project... ✓ Next.js app detected
 Checking credentials...
@@ -314,7 +314,7 @@ Checking credentials...
   ✗ Vercel: GitHub App not installed
 
   → To fix: Install the Vercel GitHub App at https://github.com/apps/vercel
-    Then run `devassemble launch` again.
+    Then run `assembler launch` again.
 ```
 
 Fail fast. Fail clearly. Never discover a credential problem halfway through a run.
@@ -331,8 +331,8 @@ Three tables:
 
 On every task status change: UPDATE run + INSERT event in a single transaction. This enables resume.
 
-Store location: `~/.devassemble/state.db`
-Credentials location: `~/.devassemble/credentials.db` (separate file, stricter permissions)
+Store location: `~/.assembler/state.db`
+Credentials location: `~/.assembler/credentials.db` (separate file, stricter permissions)
 
 ---
 
@@ -342,15 +342,15 @@ The demo should work exactly like this:
 
 ```bash
 # 1. One-time credential setup (already done before demo)
-devassemble creds add github
-devassemble creds add neon
-devassemble creds add vercel
+assembler creds add github
+assembler creds add neon
+assembler creds add vercel
 
 # 2. User has an existing Next.js project they built with Claude Code
 cd ~/my-saas-app
 
 # 3. One command to launch
-devassemble launch
+assembler launch
 
 # Output:
 # Scanning project... ✓ Next.js app detected
@@ -409,7 +409,7 @@ Given the one-week deadline, implement in this exact order. Each step should be 
 ### Day 1-2: Foundation
 1. Monorepo setup (Turborepo, TypeScript, Vitest)
 2. Core types (packages/types)
-3. CLI skeleton with commander.js (`devassemble launch`, `devassemble creds add/list`, `devassemble status`, `devassemble resume`)
+3. CLI skeleton with commander.js (`assembler launch`, `assembler creds add/list`, `assembler status`, `assembler resume`)
 4. SQLite state store
 5. Credential store with basic encryption
 
@@ -438,7 +438,7 @@ Given the one-week deadline, implement in this exact order. Each step should be 
 
 ### Day 7: Demo Polish
 1. CLI UX polish (spinners, colors, summary box)
-2. Credential onboarding flow (`devassemble creds add` with guided URLs and validation)
+2. Credential onboarding flow (`assembler creds add` with guided URLs and validation)
 3. Dry run of the exact demo script above
 4. Fix any remaining rough edges
 
@@ -446,10 +446,10 @@ Given the one-week deadline, implement in this exact order. Each step should be 
 
 ## Critical Rules
 
-1. **No code generation.** DevAssemble does not generate, scaffold, or modify the user's application code. It provisions infrastructure and deploys what already exists.
+1. **No code generation.** Assembler does not generate, scaffold, or modify the user's application code. It provisions infrastructure and deploys what already exists.
 2. **No templates.** There is no golden-path template. The user's project is the input.
 3. **Preflight before execution.** Always validate all credentials and prerequisites before making any API calls that create resources.
 4. **Fail with remediation.** Every error message must include what went wrong AND how to fix it, including direct URLs where applicable.
 5. **Idempotent operations.** Every provider action must handle retries gracefully. If a resource already exists from a previous attempt, detect it and continue.
-6. **Checkpoint everything.** After every task status change, persist to SQLite. The user must be able to `devassemble resume` after any failure.
-7. **User's accounts, user's credentials.** All resources are created under the user's own provider accounts using their own API keys. DevAssemble never creates resources under its own accounts.
+6. **Checkpoint everything.** After every task status change, persist to SQLite. The user must be able to `assembler resume` after any failure.
+7. **User's accounts, user's credentials.** All resources are created under the user's own provider accounts using their own API keys. Assembler never creates resources under its own accounts.

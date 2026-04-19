@@ -10,7 +10,7 @@ const IGNORED_DIRECTORIES = new Set([
   '.git',
   '.next',
   '.turbo',
-  '.devassemble',
+  '.assembler',
   'node_modules',
   'dist',
   'coverage',

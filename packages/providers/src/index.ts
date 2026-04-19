@@ -1,4 +1,4 @@
-import type { ProviderPack } from '@devassemble/types';
+import type { ProviderPack } from '@assembler/types';
 
 import { clerkProviderPack } from './clerk/index.js';
 import { cloudflareProviderPack } from './cloudflare/index.js';

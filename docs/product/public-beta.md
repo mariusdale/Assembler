@@ -2,7 +2,7 @@
 
 ## Product Promise
 
-DevAssemble is a TUI-first launcher for **existing Next.js applications**. The supported public beta path is intentionally narrow so the launch experience stays reliable:
+Assembler is a TUI-first launcher for **existing Next.js applications**. The supported public beta path is intentionally narrow so the launch experience stays reliable:
 
 - existing Next.js project directory
 - GitHub and Vercel required
@@ -10,7 +10,7 @@ DevAssemble is a TUI-first launcher for **existing Next.js applications**. The s
 - Clerk, Stripe, Sentry, and Resend as optional detected integrations
 - no web dashboard in this milestone
 
-## What DevAssemble Handles
+## What Assembler Handles
 
 - scans the current project to confirm framework, lockfile health, and required providers
 - creates or reuses the GitHub repository

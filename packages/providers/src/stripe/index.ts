@@ -9,7 +9,7 @@ import type {
   TaskResult,
   TaskTemplate,
   VerifyResult,
-} from '@devassemble/types';
+} from '@assembler/types';
 
 import { HttpError } from '../shared/http.js';
 import { StripeClient } from './client.js';
@@ -28,7 +28,7 @@ export const stripeProviderPack: ProviderPack = {
             code: 'STRIPE_KEY_MISSING',
             message: 'No Stripe secret key configured.',
             remediation:
-              'Add your Stripe secret key with "devassemble creds add stripe <secret-key>". You can find it at https://dashboard.stripe.com/apikeys',
+              'Add your Stripe secret key with "assembler creds add stripe <secret-key>". You can find it at https://dashboard.stripe.com/apikeys',
             url: 'https://dashboard.stripe.com/apikeys',
           },
         ],
@@ -58,7 +58,7 @@ export const stripeProviderPack: ProviderPack = {
           code: 'STRIPE_KEY_INVALID',
           message: 'Your Stripe secret key is invalid or has been revoked.',
           remediation:
-            'Generate a new secret key at https://dashboard.stripe.com/apikeys and update with "devassemble creds add stripe <secret-key>".',
+            'Generate a new secret key at https://dashboard.stripe.com/apikeys and update with "assembler creds add stripe <secret-key>".',
           url: 'https://dashboard.stripe.com/apikeys',
         });
       } else {

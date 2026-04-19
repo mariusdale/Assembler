@@ -9,7 +9,7 @@ import type {
   TaskResult,
   TaskTemplate,
   VerifyResult,
-} from '@devassemble/types';
+} from '@assembler/types';
 
 import { HttpError } from '../shared/http.js';
 import { VercelClient } from './client.js';
@@ -39,7 +39,7 @@ export const vercelProviderPack: ProviderPack = {
             code: 'VERCEL_TOKEN_MISSING',
             message: 'No Vercel token configured.',
             remediation:
-              'Add a Vercel token with "devassemble creds add vercel token=<token>".',
+              'Add a Vercel token with "assembler creds add vercel token=<token>".',
             url: 'https://vercel.com/account/tokens',
           },
         ],
@@ -56,7 +56,7 @@ export const vercelProviderPack: ProviderPack = {
           code: 'VERCEL_TOKEN_INVALID',
           message: 'Your Vercel token is invalid or expired.',
           remediation:
-            'Generate a new token and update it with "devassemble creds add vercel token=<token>".',
+            'Generate a new token and update it with "assembler creds add vercel token=<token>".',
           url: 'https://vercel.com/account/tokens',
         });
       } else {
@@ -79,7 +79,7 @@ export const vercelProviderPack: ProviderPack = {
           code: 'VERCEL_GITHUB_NOT_INSTALLED',
           message: 'The Vercel GitHub App is not installed on your account.',
           remediation:
-            'Install the Vercel GitHub integration so DevAssemble can link repositories to Vercel projects.',
+            'Install the Vercel GitHub integration so Assembler can link repositories to Vercel projects.',
           url: 'https://vercel.com/integrations/github',
         });
       }
@@ -299,7 +299,7 @@ export const vercelProviderPack: ProviderPack = {
             const inspectorUrl = deployment.inspectorUrl ? ` View build logs: ${deployment.inspectorUrl}` : '';
             throw new Error(
               `Timed out waiting for Vercel deployment ${deploymentId} to become ready (last state: "${readyState}").${inspectorUrl} ` +
-              `The deployment may still be building — try running "devassemble resume" in a minute.`,
+              `The deployment may still be building — try running "assembler resume" in a minute.`,
             );
           }
 
@@ -701,11 +701,11 @@ function toSlug(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 63) || 'devassemble-app';
+    .slice(0, 63) || 'assembler-app';
 }
 
 function getProjectName(ctx: ExecutionContext): string {
-  return ctx.projectScan?.name ?? ctx.appSpec?.name ?? 'devassemble-app';
+  return ctx.projectScan?.name ?? ctx.appSpec?.name ?? 'assembler-app';
 }
 
 function getProjectId(ctx: ExecutionContext): string {
@@ -768,7 +768,7 @@ async function createOrResolveLinkedProject(
   if (existingProject?.link?.repo) {
     throw new Error(
       `Vercel project "${input.projectName}" is already linked to repository "${existingProject.link.repo}", ` +
-      `but DevAssemble expected it to link to "${input.repoFullName}". ` +
+      `but Assembler expected it to link to "${input.repoFullName}". ` +
       `Either delete the existing Vercel project at https://vercel.com or use a different project name.`,
     );
   }

@@ -9,7 +9,7 @@ import type {
   TaskResult,
   TaskTemplate,
   VerifyResult,
-} from '@devassemble/types';
+} from '@assembler/types';
 
 import { HttpError } from '../shared/http.js';
 import { SentryClient } from './client.js';
@@ -28,7 +28,7 @@ export const sentryProviderPack: ProviderPack = {
             code: 'SENTRY_TOKEN_MISSING',
             message: 'No Sentry auth token configured.',
             remediation:
-              'Add your Sentry auth token with "devassemble creds add sentry <auth-token>". Create one at https://sentry.io/settings/account/api/auth-tokens/',
+              'Add your Sentry auth token with "assembler creds add sentry <auth-token>". Create one at https://sentry.io/settings/account/api/auth-tokens/',
             url: 'https://sentry.io/settings/account/api/auth-tokens/',
           },
         ],
@@ -60,7 +60,7 @@ export const sentryProviderPack: ProviderPack = {
           code: 'SENTRY_TOKEN_INVALID',
           message: 'Your Sentry auth token is invalid or has been revoked.',
           remediation:
-            'Generate a new auth token at https://sentry.io/settings/account/api/auth-tokens/ and update with "devassemble creds add sentry <auth-token>".',
+            'Generate a new auth token at https://sentry.io/settings/account/api/auth-tokens/ and update with "assembler creds add sentry <auth-token>".',
           url: 'https://sentry.io/settings/account/api/auth-tokens/',
         });
       } else {

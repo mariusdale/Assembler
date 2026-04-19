@@ -1,4 +1,4 @@
-import type { RunEvent, RunPlan } from '@devassemble/types';
+import type { RunEvent, RunPlan } from '@assembler/types';
 
 import { deriveExecutionView } from '../run-insights.js';
 

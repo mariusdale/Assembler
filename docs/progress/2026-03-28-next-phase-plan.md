@@ -38,7 +38,7 @@ stripe-sync-env-vars      → depends on vercel-create-project; sync STRIPE_SECR
 ```
 
 We should NOT auto-create products, prices, or webhook endpoints during `launch`.
-That's business logic, not infrastructure. DevAssemble provisions infrastructure
+That's business logic, not infrastructure. Assembler provisions infrastructure
 and syncs credentials — it doesn't decide what the user is selling.
 
 ### What we should do
@@ -64,7 +64,7 @@ and syncs credentials — it doesn't decide what the user is selling.
 4. Update rule engine `createTaskSeedsFromProjectScan()` to add stripe tasks
    when stripe is detected
 5. Update Vercel `collectEnvVars` to sync stripe keys from the capture task
-6. Add credential storage: `devassemble creds add stripe <secret-key>`
+6. Add credential storage: `assembler creds add stripe <secret-key>`
 
 ### Estimated effort: 2-3 hours
 
@@ -75,18 +75,18 @@ and syncs credentials — it doesn't decide what the user is selling.
 ### When it's needed
 
 Cloudflare DNS is only needed when the user wants a custom domain. For the
-`devassemble launch` flow (which deploys to a Vercel preview URL), custom domains
+`assembler launch` flow (which deploys to a Vercel preview URL), custom domains
 are NOT in scope. They're a post-launch step.
 
 ### Recommendation: Defer Cloudflare DNS
 
 Here's why:
-- `devassemble launch` gets you a working `.vercel.app` preview URL
+- `assembler launch` gets you a working `.vercel.app` preview URL
 - Custom domains require the user to own the domain AND have it on Cloudflare
 - DNS propagation adds minutes of waiting and failure modes
 - Vercel handles SSL automatically for custom domains added through their dashboard
 
-Custom domain support should be a separate command (e.g., `devassemble domain add`)
+Custom domain support should be a separate command (e.g., `assembler domain add`)
 rather than part of the initial launch flow. The old AppSpec-based plan included
 Cloudflare because it was trying to do everything at once. The scan-based model is
 more incremental.
@@ -110,14 +110,14 @@ vercel-verify-domain      → verify domain ownership
 
 ### TL;DR
 
-They're different tools. Neon is a better fit for DevAssemble right now.
+They're different tools. Neon is a better fit for Assembler right now.
 Supabase could be added as an alternative later.
 
 ### Neon
 
 **What it is**: Serverless Postgres. Just the database.
 
-Pros for DevAssemble:
+Pros for Assembler:
 - Simple API — create project, get connection string, done
 - Serverless scaling, branches for preview environments
 - Free tier is generous (0.5 GB storage, 190 compute hours/month)
@@ -126,7 +126,7 @@ Pros for DevAssemble:
 
 Cons:
 - Just a database. No auth, storage, realtime, or edge functions
-- That's fine — DevAssemble doesn't need those from the DB provider
+- That's fine — Assembler doesn't need those from the DB provider
 
 ### Supabase
 
@@ -139,7 +139,7 @@ Pros:
 - Good free tier (500 MB database, 1 GB storage, 50K monthly active users)
 - Strong ecosystem and community
 
-Cons for DevAssemble:
+Cons for Assembler:
 - **Heavier API surface** — creating a Supabase project provisions a database, auth
   instance, storage bucket, API gateway, and more. More things to wait for, more
   things that can fail.
@@ -153,14 +153,14 @@ Cons for DevAssemble:
 
 ### Recommendation
 
-**Keep Neon as the default for now.** It's the simplest tool for what DevAssemble
+**Keep Neon as the default for now.** It's the simplest tool for what Assembler
 needs: provision a Postgres database and hand back a connection string.
 
 **Add Supabase as an optional alternative later.** The scanner could detect it from:
 - `@supabase/supabase-js` in dependencies
 - `SUPABASE_URL` / `SUPABASE_ANON_KEY` in .env.example
 
-When detected, DevAssemble would create a Supabase project and sync the URL + anon
+When detected, Assembler would create a Supabase project and sync the URL + anon
 key to Vercel. But this is a separate provider, not a replacement for Neon.
 
 ---
@@ -186,15 +186,15 @@ key to Vercel. But this is a separate provider, not a replacement for Neon.
 
 ### Defer to later
 
-3. Cloudflare DNS (separate `devassemble domain` command)
+3. Cloudflare DNS (separate `assembler domain` command)
 4. Supabase as alternative database provider
 5. Git Trees API for faster file upload
 
 ## Open questions for tomorrow
 
-- Should `devassemble creds add stripe` accept just the secret key and derive
+- Should `assembler creds add stripe` accept just the secret key and derive
   the publishable key? Or require both?
 - Should Stripe preflight distinguish between test and live keys and warn if
   the user is about to deploy with test keys to a production environment?
-- Do we want a `devassemble plan` command that shows the plan without executing?
+- Do we want a `assembler plan` command that shows the plan without executing?
   This would help users verify before committing.

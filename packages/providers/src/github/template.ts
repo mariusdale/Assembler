@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 
-import type { AppSpec } from '@devassemble/types';
+import type { AppSpec } from '@assembler/types';
 
 const TEMPLATE_ROOT = new URL('../../../../templates/next-saas/', import.meta.url);
 
@@ -63,7 +63,7 @@ function createReplacementMap(appSpec: AppSpec): Record<string, string> {
     APP_NAME: title,
     APP_SLUG: toSlug(appName),
     APP_DESCRIPTION: description,
-    APP_DOMAIN: appSpec.domain ?? `${toSlug(appName)}.preview.devassemble.local`,
+    APP_DOMAIN: appSpec.domain ?? `${toSlug(appName)}.preview.assembler.local`,
     DASHBOARD_TITLE: dashboardTitle,
     DATABASE_REQUIRED: appSpec.database.provider === 'neon' ? 'true' : 'false',
     BILLING_MODE: appSpec.billing.mode,
@@ -80,7 +80,7 @@ function toSlug(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 63) || 'devassemble-app';
+    .slice(0, 63) || 'assembler-app';
 }
 
 function toTitleCase(value: string): string {

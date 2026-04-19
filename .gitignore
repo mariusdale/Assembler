@@ -3,7 +3,7 @@ node_modules/
 dist/
 .turbo/
 coverage/
-.devassemble/
+.assembler/
 .DS_Store
 *.tsbuildinfo
 .env

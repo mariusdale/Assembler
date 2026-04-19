@@ -15,9 +15,9 @@ export default defineConfig({
   },
   // Workspace packages are bundled inline
   noExternal: [
-    '@devassemble/core',
-    '@devassemble/providers',
-    '@devassemble/types',
+    '@assembler/core',
+    '@assembler/providers',
+    '@assembler/types',
   ],
   // Native addons and heavy deps stay external
   external: [

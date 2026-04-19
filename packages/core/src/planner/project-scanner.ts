@@ -10,7 +10,7 @@ import type {
   PackageManager,
   ProjectFramework,
   ProjectScan,
-} from '@devassemble/types';
+} from '@assembler/types';
 
 const execFile = promisify(execFileCallback);
 

@@ -83,8 +83,8 @@ export function CredsScreen({
   return (
     <Box flexDirection="column">
       <Text bold>Credentials</Text>
-      <Text dimColor>Connect the providers DevAssemble needs before launch. This is the primary onboarding path.</Text>
-      <Text dimColor>`devassemble setup` is still available as a legacy shortcut if you prefer a direct CLI flow.</Text>
+      <Text dimColor>Connect the providers Assembler needs before launch. This is the primary onboarding path.</Text>
+      <Text dimColor>`assembler setup` is still available as a legacy shortcut if you prefer a direct CLI flow.</Text>
 
       {error ? <ErrorBox message={error} /> : null}
       {success ? <Text color="green">✓ {success}</Text> : null}

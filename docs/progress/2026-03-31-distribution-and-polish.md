@@ -3,9 +3,9 @@
 ## Milestone 14: Distribution
 
 ### npm Publish Setup
-- Created `apps/cli/tsup.config.ts` — bundles workspace deps (`@devassemble/core`, `@devassemble/providers`, `@devassemble/types`) into single ESM output, keeps native addons (`better-sqlite3`) and React/Ink external
+- Created `apps/cli/tsup.config.ts` — bundles workspace deps (`@assembler/core`, `@assembler/providers`, `@assembler/types`) into single ESM output, keeps native addons (`better-sqlite3`) and React/Ink external
 - Updated `apps/cli/package.json`:
-  - Renamed to `devassemble` (from `@devassemble/cli`)
+  - Renamed to `assembler` (from `@assembler/cli`)
   - Removed `private: true`
   - Added `repository`, `license`, `homepage`, `description`, `keywords`
   - Added `bundle` script using tsup
@@ -18,7 +18,7 @@
 
 ### README Overhaul
 - Added npm/CI/license badges
-- Installation section (`npm install -g devassemble` / `npx devassemble launch`)
+- Installation section (`npm install -g assembler` / `npx assembler launch`)
 - Terminal demo output in quick start
 - Full provider table with status (8 live, 1 planned)
 - Complete command reference (including new `doctor`)
@@ -50,7 +50,7 @@
   - Abort: shows error and returns to menu
 - Added `execute-paused` phase to LaunchScreen state machine
 
-### `devassemble doctor` Command
+### `assembler doctor` Command
 - Added `doctor()` method to `CliApp` interface — checks Node version, iterates all 8 providers, validates credentials via preflight
 - Added CLI command with ora spinner and formatted output
 - Added `DoctorScreen` TUI component with same diagnostic output

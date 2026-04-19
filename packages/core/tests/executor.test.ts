@@ -11,7 +11,7 @@ import type {
   Task,
   TaskResult,
   VerifyResult,
-} from '@devassemble/types';
+} from '@assembler/types';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { createExecutor, SqliteRunStateStore } from '../src/index.js';
@@ -265,7 +265,7 @@ describe('executor runtime', () => {
 });
 
 function createStore(): SqliteRunStateStore {
-  const tempDir = mkdtempSync(join(tmpdir(), 'devassemble-executor-'));
+  const tempDir = mkdtempSync(join(tmpdir(), 'assembler-executor-'));
   tempDirs.push(tempDir);
   return new SqliteRunStateStore({
     filename: join(tempDir, 'state.db'),

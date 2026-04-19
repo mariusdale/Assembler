@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Text, useInput } from 'ink';
 import Spinner from 'ink-spinner';
-import type { Task } from '@devassemble/types';
+import type { Task } from '@assembler/types';
 
 export type FailureAction = 'retry' | 'skip' | 'abort';
 

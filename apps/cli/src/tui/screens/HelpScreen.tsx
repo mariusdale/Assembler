@@ -39,7 +39,7 @@ export function HelpScreen({
       <Box marginTop={1} flexDirection="column">
         <Text bold>CLI Shortcuts</Text>
         <Text dimColor>Most teams can stay inside the TUI, but direct commands remain available for automation and fast follow-up tasks.</Text>
-        <Text dimColor>`devassemble setup` remains available as a legacy shortcut, but Credentials is the primary onboarding path.</Text>
+        <Text dimColor>`assembler setup` remains available as a legacy shortcut, but Credentials is the primary onboarding path.</Text>
       </Box>
 
       <Box marginTop={1} flexDirection="column">
