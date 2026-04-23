@@ -1,7 +1,7 @@
 # Assembler
 
-[![npm version](https://img.shields.io/npm/v/assembler)](https://www.npmjs.com/package/assembler)
-[![CI](https://github.com/assembler/assembler/actions/workflows/ci.yml/badge.svg)](https://github.com/assembler/assembler/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/@mariusdale/assembler)](https://www.npmjs.com/package/@mariusdale/assembler)
+[![CI](https://github.com/mariusdale/Assembler/actions/workflows/ci.yml/badge.svg)](https://github.com/mariusdale/Assembler/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **Launch and operate your existing Next.js application from the terminal.**
@@ -29,13 +29,13 @@ Start with these docs:
 ## Install
 
 ```bash
-npm install -g assembler
+npm install -g @mariusdale/assembler
 ```
 
 Or run directly:
 
 ```bash
-npx assembler
+npx @mariusdale/assembler
 ```
 
 ## Quick Start

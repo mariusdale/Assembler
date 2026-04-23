@@ -2,6 +2,17 @@
   "name": "assembler",
   "private": true,
   "version": "0.1.0",
+  "description": "TUI-first launcher that provisions infrastructure and deploys existing Next.js applications.",
+  "license": "MIT",
+  "author": "Marius Dale",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mariusdale/Assembler.git"
+  },
+  "homepage": "https://github.com/mariusdale/Assembler#readme",
+  "bugs": {
+    "url": "https://github.com/mariusdale/Assembler/issues"
+  },
   "bin": {
     "assembler": "./bin/assembler"
   },
