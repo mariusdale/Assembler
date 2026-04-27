@@ -1,5 +1,4 @@
 import type {
-  AppSpec,
   Credentials,
   ExecutionContext,
   ProviderPack,
@@ -145,9 +144,4 @@ export interface ProviderExecutionResult {
 
 export interface ProviderRollbackExecutionResult {
   rollbackResult: RollbackResult;
-}
-
-export interface ExecutionRunMetadata {
-  runId: string;
-  appSpec: AppSpec;
 }

@@ -1,4 +1,4 @@
-import { access, readFile, readdir } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -193,13 +193,6 @@ async function detectProviders(
       collectMatchingDependencies(dependencies, ['@sentry/nextjs', '@sentry/node']),
     );
   }
-  if (dependencies.has('posthog-js') || dependencies.has('posthog-node')) {
-    packageEvidence.set(
-      'posthog',
-      collectMatchingDependencies(dependencies, ['posthog-js', 'posthog-node']),
-    );
-  }
-
   for (const [provider, evidence] of packageEvidence.entries()) {
     for (const entry of evidence) {
       addProviderEvidence(providers, provider, 'medium', entry);
@@ -341,10 +334,6 @@ function inferProviderFromEnvVar(name: string): string | undefined {
   if (name.startsWith('SENTRY_') || name === 'NEXT_PUBLIC_SENTRY_DSN') {
     return 'sentry';
   }
-  if (name.startsWith('POSTHOG_') || name.startsWith('NEXT_PUBLIC_POSTHOG_')) {
-    return 'posthog';
-  }
-
   return undefined;
 }
 

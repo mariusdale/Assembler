@@ -4,27 +4,21 @@
 [![CI](https://github.com/mariusdale/Assembler/actions/workflows/ci.yml/badge.svg)](https://github.com/mariusdale/Assembler/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Launch and operate your existing Next.js application from the terminal.**
+Assembler launches and operates an existing Next.js application from the terminal. It scans the project you already built, provisions the matching infrastructure, deploys to Vercel, and keeps follow-up operations like previews, domains, environment sync, teardown, and resume inside one CLI.
 
-Assembler is a **TUI-first** launcher for teams that want a narrow, reliable deployment workflow instead of a wide product surface. Install it, run `assembler`, and manage the supported launch path from the terminal UI: credentials, readiness, launch, status, previews, domains, and environment sync.
+Assembler does not generate application code or scaffold projects.
 
-## Public Beta Scope
+## Supported Scope
 
-The supported beta promise is intentionally focused:
+The current public beta supports:
 
-- existing **Next.js** project directories only
-- **GitHub** and **Vercel** are required for the launch path
-- **Neon** is the default database path when `DATABASE_URL` is detected
-- **Clerk**, **Stripe**, **Sentry**, and **Resend** are optional detected integrations
-- no web dashboard in this milestone
-
-Start with these docs:
-
-- [Public beta guide](docs/product/public-beta.md)
-- [Release checklist](docs/ops/release-checklist.md)
-- [Support runbook](docs/ops/support-runbook.md)
-- [Demo script](docs/go-to-market/demo-script.md)
-- [Documentation index](docs/README.md)
+- existing Next.js project directories
+- GitHub repository creation or reuse
+- Vercel project creation, repository linking, env sync, deployment, and health checks
+- Neon provisioning when database env vars or database packages are detected
+- optional Clerk, Stripe, Sentry, and Resend credential capture and Vercel env sync
+- Cloudflare DNS management for custom domains
+- per-branch preview environments with Neon branch isolation when a production Neon database exists
 
 ## Install
 
@@ -32,7 +26,7 @@ Start with these docs:
 npm install -g @mariusdale/assembler
 ```
 
-Or run directly:
+Or run without installing:
 
 ```bash
 npx @mariusdale/assembler
@@ -45,64 +39,71 @@ cd your-nextjs-app
 assembler
 ```
 
-Recommended TUI flow:
+The terminal UI is the primary experience:
 
-1. Open `Credentials` if required providers are not connected yet.
-2. Open `Doctor` if the project needs readiness checks or remediation.
-3. Open `Launch` to review the launch briefing and execute the run.
-4. Use `Status`, `Preview`, `Domains`, and `Environment Sync` for follow-up operations.
+1. Add provider credentials from `Credentials`.
+2. Run `Doctor` to check local readiness and provider access.
+3. Use `Launch` to review and execute the deployment plan.
+4. Use `Status`, `Preview`, `Domains`, and `Environment Sync` for follow-up work.
 
-## What Assembler Does
-
-- scans `package.json`, `.env.example`, and project structure to confirm the supported launch path
-- creates or reuses the GitHub repository
-- provisions Neon when the project indicates a database requirement
-- deploys and verifies the project on Vercel
-- syncs detected provider credentials into the deployment environment
-- keeps launch and recovery steps inside the terminal experience
-
-## Direct Commands
-
-Most teams should run `assembler` and stay in the TUI. Direct commands remain available for automation and fast follow-up work.
+Direct commands are available for automation:
 
 | Command | Description |
 |---|---|
-| `assembler launch` | Scan, provision, and deploy your project |
-| `assembler plan` | Show what `launch` would do without executing |
-| `assembler doctor` | Check project readiness and provider credentials |
-| `assembler status` | Inspect deployment history |
+| `assembler launch` | Scan, provision, deploy, and verify the current project |
+| `assembler plan` | Show the launch plan without executing it |
+| `assembler doctor` | Check local readiness and configured provider credentials |
+| `assembler status [runId]` | Inspect deployment history or a specific run |
 | `assembler resume <runId>` | Resume a failed run from its checkpoint |
-| `assembler teardown` | Delete resources created by a launch |
-| `assembler env pull` | Pull env vars from Vercel into `.env.local` |
-| `assembler env push` | Push local env vars to Vercel |
-| `assembler preview [branch]` | Create a preview environment |
+| `assembler teardown [runId]` | Delete resources created by a launch run |
+| `assembler env pull [runId]` | Pull Vercel env vars into `.env.local` |
+| `assembler env push [runId]` | Push `.env.local` or `.env` vars to Vercel |
+| `assembler preview [branch]` | Create a branch preview environment |
 | `assembler preview-teardown [branch]` | Tear down a preview environment |
-| `assembler domain add <domain>` | Configure a custom domain |
-| `assembler creds add <provider> <token>` | Add provider credentials |
-| `assembler creds list` | List configured providers |
-| `assembler setup` | Legacy CLI shortcut for guided credential setup |
+| `assembler domain add <domain>` | Configure Cloudflare DNS and register the domain with Vercel |
+| `assembler creds add <provider> <token>` | Store provider credentials locally |
+| `assembler creds list` | List configured credential providers |
 
-## Requirements
+## Credentials
 
-- Node.js >= 20
-- an existing Next.js project
+Credentials are stored locally in `.assembler/state.db` inside the project you run Assembler from.
 
-## Feedback
+```bash
+assembler creds add github <github-token-with-repo-scope>
+assembler creds add vercel token=<vercel-token>
+assembler creds add neon <neon-account-api-key>
+```
 
-Useful beta feedback should include:
+Optional providers are added the same way when your project uses them:
 
-- `runId`
-- first failing task
-- provider involved
-- remediation text shown by Assembler
+```bash
+assembler creds add clerk token=<secret-key> publishableKey=<pk_...>
+assembler creds add stripe <stripe-secret-key>
+assembler creds add sentry <sentry-auth-token>
+assembler creds add resend <resend-api-key>
+assembler creds add cloudflare <cloudflare-api-token>
+```
 
-See [docs/ops/support-runbook.md](docs/ops/support-runbook.md) for the operational triage flow.
+See [Credential setup](docs/credential-setup.md) for scopes and provider links.
+
+## Documentation
+
+- [Documentation index](docs/README.md)
+- [Architecture](docs/architecture.md)
+- [Public beta guide](docs/product/public-beta.md)
+- [Credential setup](docs/credential-setup.md)
+- [Release checklist](docs/ops/release-checklist.md)
+- [Support runbook](docs/ops/support-runbook.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
 
 ## Development
 
 ```bash
 corepack enable pnpm
 pnpm install
+pnpm lint
+pnpm typecheck
 pnpm build
 pnpm test
 ```

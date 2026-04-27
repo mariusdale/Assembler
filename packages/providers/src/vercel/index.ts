@@ -233,9 +233,7 @@ export const vercelProviderPack: ProviderPack = {
         const ref =
           asOptionalString(resolveRepoOutput(ctx, 'defaultBranch')) ?? 'main';
         const sha =
-          asOptionalString(ctx.getOutput('github-push-code', 'latestCommitSha')) ??
-          asOptionalString(ctx.getOutput('github-scaffold-template', 'latestCommitSha')) ??
-          asOptionalString(ctx.getOutput('github-initial-commit', 'latestCommitSha'));
+          asOptionalString(ctx.getOutput('github-push-code', 'latestCommitSha'));
 
         if (!sha) {
           throw new Error('A GitHub commit SHA is required before deploying to Vercel. Ensure code was pushed to the repository.');
@@ -612,7 +610,7 @@ function collectEnvVars(
     // Outputs produced by the scan-based path (neon)
     push('DATABASE_URL', ctx.getOutput('neon-capture-database-url', 'databaseUrl'), allTargets);
 
-    // Clerk keys (scan-based path uses clerk-capture-keys, old AppSpec path used separate tasks)
+    // Clerk keys
     push('CLERK_SECRET_KEY',
       ctx.getOutput('clerk-capture-keys', 'secretKey') ??
       ctx.getOutput('clerk-capture-secret-key', 'secretKey'),
@@ -622,7 +620,6 @@ function collectEnvVars(
       ctx.getOutput('clerk-capture-publishable-key', 'publishableKey'),
       allTargets);
     push('SENTRY_DSN', ctx.getOutput('sentry-capture-dsn', 'dsn'), allTargets);
-    push('POSTHOG_API_KEY', ctx.getOutput('posthog-capture-api-key', 'apiKey'), allTargets);
     push('STRIPE_SECRET_KEY',
       ctx.getOutput('stripe-capture-keys', 'secretKey') ??
       ctx.getOutput('stripe-capture-secret-key', 'secretKey'),
@@ -705,7 +702,7 @@ function toSlug(value: string): string {
 }
 
 function getProjectName(ctx: ExecutionContext): string {
-  return ctx.projectScan?.name ?? ctx.appSpec?.name ?? 'assembler-app';
+  return ctx.projectScan?.name ?? 'assembler-app';
 }
 
 function getProjectId(ctx: ExecutionContext): string {

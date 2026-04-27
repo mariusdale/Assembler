@@ -20,6 +20,11 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
+  },
   "scripts": {
     "build": "PATH=\"$PWD/bin:$PATH\" turbo run build",
     "lint": "PATH=\"$PWD/bin:$PATH\" turbo run lint",

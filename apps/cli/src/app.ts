@@ -4,15 +4,12 @@ import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 
 import {
-  createAnthropicAppSpecParser,
-  createAnthropicClient,
   createRunPlanFromProjectScan,
   createExecutor,
-  planPrompt,
   scanProject,
 } from '@assembler/core';
 import { createProviderRegistry, NeonClient, VercelClient } from '@assembler/providers';
-import type { AppSpec, Credentials, DiscoveryResult, PreviewRecord, ProjectScan, RunEvent, RunPlan } from '@assembler/types';
+import type { Credentials, DiscoveryResult, PreviewRecord, ProjectScan, RunEvent, RunPlan } from '@assembler/types';
 
 import { createStateStore, type LocalStateStore } from './state-store.js';
 
@@ -38,11 +35,10 @@ export interface DoctorResult {
 
 export interface CliApp {
   scan(): Promise<ProjectScan>;
-  createPlan(projectScan: ProjectScan): RunPlan;
+  createPlan(projectScan: ProjectScan, options?: { useExistingRepo?: boolean }): RunPlan;
   preflight(runPlan: RunPlan): Promise<PreflightCheckResults>;
   executePlan(runPlan: RunPlan): Promise<RunPlan>;
   launch(): Promise<LaunchResult>;
-  init(prompt: string): Promise<RunPlan>;
   execute(runId?: string): Promise<RunPlan>;
   status(runId?: string): Promise<RunPlan>;
   listRuns(): Promise<RunPlan[]>;
@@ -115,9 +111,9 @@ export function createCliApp(cwd = process.cwd()): CliApp {
     scan: async (): Promise<ProjectScan> => {
       return scanProject(cwd);
     },
-    createPlan: (projectScan: ProjectScan): RunPlan => {
+    createPlan: (projectScan: ProjectScan, planOptions?: { useExistingRepo?: boolean }): RunPlan => {
       const runPlan: RunPlan = {
-        ...createRunPlanFromProjectScan(projectScan),
+        ...createRunPlanFromProjectScan(projectScan, planOptions),
         status: 'approved',
       };
       stateStore.saveRun(runPlan);
@@ -148,26 +144,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       });
 
       return { projectScan, preflightResults, runPlan: result.runPlan };
-    },
-    init: async (prompt: string): Promise<RunPlan> => {
-      const parser = process.env.ANTHROPIC_API_KEY
-        ? createAnthropicAppSpecParser({
-            client: createAnthropicClient(process.env.ANTHROPIC_API_KEY),
-            model: process.env.ASSEMBLER_ANTHROPIC_MODEL ?? 'claude-sonnet-4-20250514',
-          })
-        : createHeuristicParser();
-
-      const result = await planPrompt(prompt, {
-        parser,
-      });
-
-      const approvedRunPlan: RunPlan = {
-        ...result.runPlan,
-        status: 'approved',
-      };
-      stateStore.saveRun(approvedRunPlan);
-
-      return approvedRunPlan;
     },
     execute: async (runId?: string): Promise<RunPlan> => {
       const targetRunId = runId ?? findLatestRunId(stateStore);
@@ -527,7 +503,7 @@ export function createCliApp(cwd = process.cwd()): CliApp {
         }
       }
 
-      const domainPlan = createDomainPlan(domain, projectId, run.id);
+      const domainPlan = createDomainPlan(domain, projectId);
       stateStore.saveRun(domainPlan);
 
       const result = await executor.execute({ runPlan: domainPlan });
@@ -602,66 +578,6 @@ export function createCliApp(cwd = process.cwd()): CliApp {
           .every((c) => c.preflightResult?.valid !== false),
       };
     },
-  };
-}
-
-function createHeuristicParser(): {
-  parse(prompt: string): Promise<{
-    appSpec: AppSpec;
-    assumptions: Array<{ code: string; message: string }>;
-  }>;
-} {
-  return {
-    parse: (prompt: string) => Promise.resolve((() => {
-      const normalizedPrompt = prompt.trim();
-      const slug = normalizedPrompt
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 40) || 'assembler-app';
-      const mentionsPayments =
-        /\b(subscription|subscriptions|billing|payments|payment|stripe)\b/i.test(prompt);
-
-      return {
-        appSpec: {
-          name: slug,
-          description: normalizedPrompt,
-          auth: {
-            provider: 'clerk',
-            strategy: /google/i.test(prompt) ? 'google' : 'email',
-          },
-          billing: {
-            provider: 'stripe',
-            mode: mentionsPayments ? 'subscription' : 'none',
-          },
-          database: {
-            provider: 'neon',
-          },
-          email: {
-            provider: 'resend',
-          },
-          monitoring: {
-            errorTracking: 'sentry',
-            analytics: 'posthog',
-          },
-          hosting: {
-            provider: 'vercel',
-          },
-          dns: {
-            provider: 'cloudflare',
-          },
-        },
-        assumptions: mentionsPayments
-          ? [
-              {
-                code: 'billing.defaulted_to_subscription',
-                message:
-                  'Anthropic API key was not configured, so the CLI defaulted billing.mode to subscription from the prompt text.',
-              },
-            ]
-          : [],
-      };
-    })()),
   };
 }
 
@@ -759,7 +675,7 @@ function makePreviewTask(
   };
 }
 
-function createDomainPlan(domain: string, vercelProjectId: string, parentRunId: string): RunPlan {
+function createDomainPlan(domain: string, vercelProjectId: string): RunPlan {
   const makeDomainTask = (
     id: string,
     name: string,
@@ -904,7 +820,7 @@ export async function runPreflightChecks(
             {
               code: `${provider.toUpperCase()}_DISCOVERY_FAILED`,
               message: discovery.error ?? `Credential check failed for provider "${provider}".`,
-              remediation: `Check your ${provider} credentials with "assembler discover ${provider}".`,
+              remediation: `Update the credential with "assembler creds add ${provider} <token>", then run "assembler doctor".`,
             },
           ],
     });

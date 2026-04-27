@@ -25,7 +25,6 @@ const PROVIDER_LABELS: Record<string, string> = {
   cloudflare: 'DNS: Cloudflare',
   resend: 'Email: Resend',
   sentry: 'Error Tracking: Sentry',
-  posthog: 'Analytics: PostHog',
 };
 
 export function createProgram(): Command {
@@ -67,6 +66,16 @@ export function createProgram(): Command {
 
       printDetectedServices(projectScan);
 
+      let useExistingRepo = false;
+      if (projectScan.hasGitRemote) {
+        console.log();
+        console.log(`  ${chalk.dim('GitHub remote detected:')} ${projectScan.gitRemoteUrl}`);
+        useExistingRepo = await promptConfirm('  Use existing GitHub repository?');
+        if (!useExistingRepo) {
+          console.log(chalk.dim('  → A new GitHub repository will be created.'));
+        }
+      }
+
       const lc = projectScan.lockfileCheck;
       if (!lc.lockfileExists) {
         console.log();
@@ -92,7 +101,7 @@ export function createProgram(): Command {
         return;
       }
 
-      const runPlan = cliApp.createPlan(projectScan);
+      const runPlan = cliApp.createPlan(projectScan, { useExistingRepo });
 
       console.log();
       console.log(chalk.bold('Checking credentials...'));
@@ -321,16 +330,6 @@ export function createProgram(): Command {
       console.log();
       console.log(chalk.dim(`Run ID: ${runPlan.id}`));
       console.log(chalk.dim('Run "assembler launch" to execute this plan.'));
-    });
-
-  program
-    .command('init', { hidden: true })
-    .argument('<prompt>', 'Natural-language application brief')
-    .description('Parse a prompt into a typed application plan.')
-    .action(async (prompt: string) => {
-      const runPlan = await getApp().init(prompt);
-      console.log(`Created run ${runPlan.id} with ${runPlan.tasks.length} tasks.`);
-      console.log(`Status: ${runPlan.status}`);
     });
 
   program

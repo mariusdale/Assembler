@@ -1,36 +1,7 @@
-import type { AppSpec, Credentials, ExecutionContext, Task } from '@assembler/types';
+import type { Credentials, ExecutionContext, Task } from '@assembler/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { sentryProviderPack } from '../src/sentry/index.js';
-
-const sampleAppSpec: AppSpec = {
-  name: 'menugen',
-  description: 'Restaurant menu generator SaaS',
-  auth: {
-    provider: 'clerk',
-    strategy: 'both',
-  },
-  billing: {
-    provider: 'stripe',
-    mode: 'subscription',
-  },
-  database: {
-    provider: 'neon',
-  },
-  email: {
-    provider: 'resend',
-  },
-  monitoring: {
-    errorTracking: 'sentry',
-    analytics: 'posthog',
-  },
-  hosting: {
-    provider: 'vercel',
-  },
-  dns: {
-    provider: 'cloudflare',
-  },
-};
 
 describe('sentry provider pack', () => {
   afterEach(() => {
@@ -296,7 +267,6 @@ function createTask(action: Task['action']): Task {
 function createExecutionContext(): ExecutionContext {
   return {
     runId: 'run_test',
-    appSpec: sampleAppSpec,
     projectScan: undefined,
     getOutput(): unknown {
       return undefined;

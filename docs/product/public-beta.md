@@ -9,6 +9,7 @@ Assembler is a TUI-first launcher for **existing Next.js applications**. The sup
 - Neon as the default database path when `DATABASE_URL` is detected
 - Clerk, Stripe, Sentry, and Resend as optional detected integrations
 - no web dashboard in this milestone
+- no code generation or app scaffolding
 
 ## What Assembler Handles
 
@@ -17,6 +18,7 @@ Assembler is a TUI-first launcher for **existing Next.js applications**. The sup
 - provisions Neon when the project indicates a database requirement
 - links and deploys the project on Vercel
 - syncs detected provider credentials into the deployment environment
+- verifies deployment health after Vercel reports readiness
 - keeps launch, status, preview, and recovery workflows inside the terminal UI
 
 ## What To Expect

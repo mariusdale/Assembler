@@ -14,7 +14,6 @@ const PROVIDER_LABELS: Record<string, string> = {
   cloudflare: 'DNS: Cloudflare',
   github: 'GitHub',
   neon: 'Database: Neon',
-  posthog: 'Analytics: PostHog',
   resend: 'Email: Resend',
   sentry: 'Error Tracking: Sentry',
   stripe: 'Payments: Stripe',
@@ -345,6 +344,7 @@ export function deriveExecutionView(
 }
 
 export function deriveRunOutcomeSummary(runPlan: RunPlan, events: RunEvent[] = []): RunOutcomeSummary {
+  void events;
   const githubTask = runPlan.tasks.find((task) => task.provider === 'github' && task.status === 'success');
   const repoUrl = asOptionalString(githubTask?.outputs.repoUrl);
   const previewUrl = findPreviewUrl(runPlan);

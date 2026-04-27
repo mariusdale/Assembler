@@ -26,7 +26,6 @@ export function TaskProgressList({ tasks, onFailureAction }: TaskProgressListPro
       ))}
       {failedTask && onFailureAction ? (
         <FailurePrompt
-          taskId={failedTask.id}
           taskName={failedTask.name}
           error={failedTask.error}
           onAction={(action) => onFailureAction(failedTask.id, action)}
@@ -43,12 +42,10 @@ export function TaskProgressList({ tasks, onFailureAction }: TaskProgressListPro
 }
 
 function FailurePrompt({
-  taskId,
   taskName,
   error,
   onAction,
 }: {
-  taskId: string;
   taskName: string;
   error?: string | undefined;
   onAction: (action: FailureAction) => void;

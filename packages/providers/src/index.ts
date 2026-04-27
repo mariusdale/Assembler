@@ -8,10 +8,6 @@ import { resendProviderPack } from './resend/index.js';
 import { sentryProviderPack } from './sentry/index.js';
 import { stripeProviderPack } from './stripe/index.js';
 import { vercelProviderPack } from './vercel/index.js';
-import {
-  placeholderProviderPacks,
-  posthogProviderPack,
-} from './placeholders.js';
 
 export const plannedProviders = [
   'github',
@@ -22,7 +18,6 @@ export const plannedProviders = [
   'cloudflare',
   'resend',
   'sentry',
-  'posthog',
 ] as const;
 
 export type PlannedProvider = (typeof plannedProviders)[number];
@@ -37,7 +32,6 @@ export function createProviderRegistry(): Record<string, ProviderPack> {
     sentry: sentryProviderPack,
     stripe: stripeProviderPack,
     vercel: vercelProviderPack,
-    ...placeholderProviderPacks,
   };
 }
 
@@ -48,7 +42,6 @@ export {
   cloudflareProviderPack,
   githubProviderPack,
   neonProviderPack,
-  posthogProviderPack,
   resendProviderPack,
   sentryProviderPack,
   stripeProviderPack,

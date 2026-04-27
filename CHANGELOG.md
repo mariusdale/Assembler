@@ -14,3 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cloudflare DNS management for custom domains via `assembler domain add`.
 - Preview environments per git branch via `assembler preview`.
 - Environment variable sync via `assembler env pull` and `assembler env push`.
+- Open-source contributor docs, architecture notes, security policy, and code of conduct.
+
+### Removed
+
+- Legacy prompt/template generation path and placeholder packages that were outside the supported launch scope.

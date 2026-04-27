@@ -22,7 +22,6 @@
   },
   "dependencies": {
     "@assembler/types": "workspace:*",
-    "@anthropic-ai/sdk": "^0.52.0",
     "better-sqlite3": "^12.4.1"
   }
 }

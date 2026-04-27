@@ -1,36 +1,7 @@
-import type { AppSpec, Credentials, ExecutionContext, Task } from '@assembler/types';
+import type { Credentials, ExecutionContext, Task } from '@assembler/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { vercelProviderPack } from '../src/vercel/index.js';
-
-const sampleAppSpec: AppSpec = {
-  name: 'menugen',
-  description: 'Restaurant menu generator SaaS',
-  auth: {
-    provider: 'clerk',
-    strategy: 'both',
-  },
-  billing: {
-    provider: 'stripe',
-    mode: 'subscription',
-  },
-  database: {
-    provider: 'neon',
-  },
-  email: {
-    provider: 'resend',
-  },
-  monitoring: {
-    errorTracking: 'sentry',
-    analytics: 'posthog',
-  },
-  hosting: {
-    provider: 'vercel',
-  },
-  dns: {
-    provider: 'cloudflare',
-  },
-};
 
 describe('vercel provider pack', () => {
   afterEach(() => {
@@ -52,7 +23,9 @@ describe('vercel provider pack', () => {
 
         if (url.includes('/v11/projects') && init?.method === 'POST') {
           const body = typeof init.body === 'string' ? init.body : '';
-          const parsed = body === '' ? {} : JSON.parse(body);
+          const parsed = (body === '' ? {} : JSON.parse(body)) as {
+            gitRepository?: unknown;
+          };
 
           return Promise.resolve(
             new Response(
@@ -312,7 +285,6 @@ function createTask(action: Task['action']): Task {
 function createExecutionContext(): ExecutionContext {
   return {
     runId: 'run_test',
-    appSpec: sampleAppSpec,
     projectScan: undefined,
     getOutput(taskId: string, key: string): unknown {
       const outputsByTaskId: Record<string, Record<string, unknown>> = {
@@ -334,7 +306,7 @@ function createExecutionContext(): ExecutionContext {
           ownerId: 321,
           defaultBranch: 'main',
         },
-        'github-scaffold-template': {
+        'github-push-code': {
           latestCommitSha: 'abc123',
         },
         'neon-capture-database-url': {
@@ -351,9 +323,6 @@ function createExecutionContext(): ExecutionContext {
         },
         'sentry-capture-dsn': {
           dsn: 'https://dsn',
-        },
-        'posthog-capture-api-key': {
-          apiKey: 'posthog_key',
         },
         'stripe-capture-secret-key': {
           secretKey: 'stripe_secret',

@@ -67,7 +67,6 @@ function createTask(): Task {
 function createExecutionContext(): ExecutionContext {
   return {
     runId: 'run_test',
-    appSpec: undefined,
     projectScan: undefined,
     getOutput(): unknown {
       return undefined;

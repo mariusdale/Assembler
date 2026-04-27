@@ -12,7 +12,7 @@ import type {
 } from '@assembler/types';
 
 import { HttpError } from '../shared/http.js';
-import { NeonClient, type NeonProjectResponse } from './client.js';
+import { NeonClient } from './client.js';
 
 export const neonProviderPack: ProviderPack = {
   name: 'neon',
@@ -107,7 +107,6 @@ export const neonProviderPack: ProviderPack = {
           asOptionalString(task.params.name) ?? `${toSlug(getProjectName(ctx))}-db`;
 
         // Idempotency: check if a project with this name already exists
-        let project: NeonProjectResponse | undefined;
         try {
           const existing = await client.listProjects();
           const match = existing.projects.find((p) => p.name === projectName);
@@ -142,7 +141,7 @@ export const neonProviderPack: ProviderPack = {
           // If listing fails, proceed with creation
         }
 
-        project = await client.createProject({
+        const project = await client.createProject({
           name: projectName,
           ...(regionId ? { regionId } : {}),
         });
@@ -349,7 +348,7 @@ function toSlug(value: string): string {
 }
 
 function getProjectName(ctx: ExecutionContext): string {
-  return ctx.projectScan?.name ?? ctx.appSpec?.name ?? 'assembler-app';
+  return ctx.projectScan?.name ?? 'assembler-app';
 }
 
 async function waitForProjectReady(

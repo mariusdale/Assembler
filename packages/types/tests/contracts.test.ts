@@ -1,42 +1,38 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import type {
-  AppSpec,
   ExecutionContext,
+  ProjectScan,
   ProviderPack,
   RunPlan,
   Task,
 } from '../src/index.js';
 
-const sampleAppSpec = {
+const sampleProjectScan = {
   name: 'menugen',
-  description: 'Restaurant menu generator SaaS',
-  auth: {
-    provider: 'clerk',
-    strategy: 'both',
+  framework: 'nextjs',
+  directory: '/tmp/menugen',
+  hasGitRemote: true,
+  gitRemoteUrl: 'git@github.com:mariusdale/menugen.git',
+  detectedProviders: [
+    {
+      provider: 'vercel',
+      confidence: 'high',
+      evidence: ['package.json: dependency next'],
+    },
+  ],
+  requiredEnvVars: [],
+  packageJson: {
+    name: 'menugen',
   },
-  billing: {
-    provider: 'stripe',
-    mode: 'subscription',
+  lockfileCheck: {
+    packageManager: 'pnpm',
+    lockfileExists: true,
+    inSync: true,
+    missingFromLockfile: [],
+    extraInLockfile: [],
   },
-  database: {
-    provider: 'neon',
-  },
-  email: {
-    provider: 'resend',
-  },
-  monitoring: {
-    errorTracking: 'sentry',
-    analytics: 'posthog',
-  },
-  hosting: {
-    provider: 'vercel',
-  },
-  dns: {
-    provider: 'cloudflare',
-  },
-  budgetCeiling: 250,
-} satisfies AppSpec;
+} satisfies ProjectScan;
 
 const sampleTask = {
   id: 'task_1',
@@ -60,17 +56,16 @@ const sampleTask = {
 
 const sampleRunPlan = {
   id: 'run_1',
-  appSpec: sampleAppSpec,
+  projectScan: sampleProjectScan,
   tasks: [sampleTask],
-  estimatedCostUsd: 19,
+  estimatedCostUsd: 0,
   createdAt: new Date('2026-03-27T00:00:00.000Z'),
   status: 'draft',
 } satisfies RunPlan;
 
 const sampleContext: ExecutionContext = {
   runId: sampleRunPlan.id,
-  appSpec: sampleAppSpec,
-  projectScan: undefined,
+  projectScan: sampleProjectScan,
   getOutput: () => undefined,
   getCredential: (provider) =>
     Promise.resolve({
@@ -127,8 +122,8 @@ const sampleProviderPack: ProviderPack = {
 };
 
 describe('shared contracts', () => {
-  it('type-checks representative milestone 1 structures', async () => {
-    expectTypeOf(sampleAppSpec).toMatchTypeOf<AppSpec>();
+  it('type-checks representative scan-driven structures', async () => {
+    expectTypeOf(sampleProjectScan).toMatchTypeOf<ProjectScan>();
     expectTypeOf(sampleTask).toMatchTypeOf<Task>();
     expectTypeOf(sampleRunPlan).toMatchTypeOf<RunPlan>();
     expectTypeOf(sampleProviderPack).toMatchTypeOf<ProviderPack>();

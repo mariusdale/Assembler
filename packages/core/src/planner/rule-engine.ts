@@ -1,4 +1,4 @@
-import type { AppSpec, ProjectScan, RiskLevel, RunPlan, Task } from '@assembler/types';
+import type { ProjectScan, RiskLevel, RunPlan, Task } from '@assembler/types';
 
 import type { CreateRunPlanOptions, PlannerTaskSeed } from './types.js';
 
@@ -16,27 +16,11 @@ export class DependencyGraphError extends Error {
   }
 }
 
-export async function planPrompt(
-  prompt: string,
-  options: import('./types.js').PlanPromptOptions,
-): Promise<import('./types.js').PlannerResult> {
-  const parsed = await options.parser.parse(prompt);
-  const runPlan = createRunPlan(parsed.appSpec, {
-    ...(options.now ? { now: options.now } : {}),
-    ...(options.idGenerator ? { idGenerator: options.idGenerator } : {}),
-  });
-
-  return {
-    ...parsed,
-    runPlan,
-  };
-}
-
 export function createRunPlanFromProjectScan(
   projectScan: ProjectScan,
   options: CreateRunPlanOptions = {},
 ): RunPlan {
-  const taskSeeds = createTaskSeedsFromProjectScan(projectScan);
+  const taskSeeds = createTaskSeedsFromProjectScan(projectScan, options);
   const tasks = topologicallySortTasks(taskSeeds.map(toTask));
 
   return {
@@ -49,26 +33,16 @@ export function createRunPlanFromProjectScan(
   };
 }
 
-export function createRunPlan(appSpec: AppSpec, options: CreateRunPlanOptions = {}): RunPlan {
-  const taskSeeds = createTaskSeeds(appSpec);
-  const tasks = topologicallySortTasks(taskSeeds.map(toTask));
-
-  return {
-    id: options.idGenerator?.() ?? crypto.randomUUID(),
-    appSpec,
-    tasks,
-    estimatedCostUsd: estimateMonthlyCostUsd(appSpec),
-    createdAt: options.now ?? new Date(),
-    status: 'draft',
-  };
-}
-
-function createTaskSeedsFromProjectScan(projectScan: ProjectScan): PlannerTaskSeed[] {
+function createTaskSeedsFromProjectScan(
+  projectScan: ProjectScan,
+  options: CreateRunPlanOptions = {},
+): PlannerTaskSeed[] {
   const appSlug = toSlug(projectScan.name);
-  const repoTaskId = projectScan.hasGitRemote ? 'github-use-existing-repo' : 'github-create-repo';
+  const useExisting = options.useExistingRepo && projectScan.hasGitRemote;
+  const repoTaskId = useExisting ? 'github-use-existing-repo' : 'github-create-repo';
   const seeds: PlannerTaskSeed[] = [];
 
-  if (projectScan.hasGitRemote) {
+  if (useExisting) {
     seeds.push(
       taskSeed(
         'github-use-existing-repo',
@@ -76,9 +50,7 @@ function createTaskSeedsFromProjectScan(projectScan: ProjectScan): PlannerTaskSe
         'github',
         'use-existing-repo',
         [],
-        {
-          remoteUrl: projectScan.gitRemoteUrl,
-        },
+        { remoteUrl: projectScan.gitRemoteUrl },
       ),
     );
   } else {
@@ -349,349 +321,6 @@ export function topologicallySortTasks(tasks: Task[]): Task[] {
   return sorted;
 }
 
-function createTaskSeeds(appSpec: AppSpec): PlannerTaskSeed[] {
-  const appSlug = toSlug(appSpec.name);
-  const seeds: PlannerTaskSeed[] = [
-    taskSeed('github-create-repo', 'Create GitHub repository', 'github', 'create-repo', [], {
-      name: appSlug,
-      description: appSpec.description,
-      private: true,
-    }),
-    taskSeed(
-      'github-scaffold-template',
-      'Scaffold Next.js template',
-      'github',
-      'commit-template',
-      ['github-create-repo'],
-    ),
-    taskSeed(
-      'github-initial-commit',
-      'Create initial commit',
-      'github',
-      'create-initial-commit',
-      ['github-scaffold-template'],
-    ),
-    taskSeed(
-      'neon-create-project',
-      'Create Neon project',
-      'neon',
-      'create-project',
-      ['github-create-repo'],
-      {
-        name: `${appSlug}-db`,
-        databaseName: appSlug,
-      },
-      'medium',
-      true,
-    ),
-    taskSeed(
-      'neon-create-database',
-      'Create Neon database',
-      'neon',
-      'create-database',
-      ['neon-create-project'],
-      {
-        databaseName: appSlug,
-      },
-      'medium',
-      true,
-    ),
-    taskSeed(
-      'neon-run-schema-migration',
-      'Run database schema migration',
-      'neon',
-      'run-schema-migration',
-      ['neon-create-database'],
-    ),
-    taskSeed(
-      'neon-capture-database-url',
-      'Capture DATABASE_URL',
-      'neon',
-      'capture-database-url',
-      ['neon-run-schema-migration'],
-    ),
-    taskSeed(
-      'clerk-capture-keys',
-      'Capture Clerk API keys',
-      'clerk',
-      'capture-keys',
-      ['github-create-repo'],
-    ),
-    taskSeed(
-      'sentry-create-project',
-      'Create Sentry project',
-      'sentry',
-      'create-project',
-      ['github-create-repo'],
-    ),
-    taskSeed(
-      'sentry-add-nextjs-plugin',
-      'Add Sentry Next.js plugin',
-      'sentry',
-      'add-nextjs-plugin',
-      ['github-scaffold-template', 'sentry-create-project'],
-    ),
-    taskSeed(
-      'sentry-capture-dsn',
-      'Capture Sentry DSN',
-      'sentry',
-      'capture-dsn',
-      ['sentry-create-project'],
-    ),
-    taskSeed(
-      'posthog-create-project',
-      'Create PostHog project',
-      'posthog',
-      'create-project',
-      ['github-create-repo'],
-    ),
-    taskSeed(
-      'posthog-add-provider',
-      'Add PostHog provider to template',
-      'posthog',
-      'add-provider',
-      ['github-scaffold-template', 'posthog-create-project'],
-    ),
-    taskSeed(
-      'posthog-capture-api-key',
-      'Capture PostHog API key',
-      'posthog',
-      'capture-api-key',
-      ['posthog-create-project'],
-    ),
-    taskSeed(
-      'vercel-create-project',
-      'Create Vercel project',
-      'vercel',
-      'create-project',
-      ['github-create-repo'],
-      {
-        name: appSlug,
-        framework: 'nextjs',
-      },
-      'medium',
-      true,
-    ),
-    taskSeed(
-      'vercel-link-repository',
-      'Link Vercel project to GitHub repository',
-      'vercel',
-      'link-repository',
-      ['vercel-create-project', 'github-initial-commit'],
-      {
-        productionBranch: 'main',
-      },
-      'medium',
-      true,
-    ),
-  ];
-
-  const predeployEnvDependencies = [
-    'neon-capture-database-url',
-    'clerk-capture-keys',
-    'sentry-capture-dsn',
-    'posthog-capture-api-key',
-  ];
-
-  if (appSpec.billing.mode !== 'none') {
-    seeds.push(
-      taskSeed(
-        'stripe-create-product',
-        'Create Stripe product',
-        'stripe',
-        'create-product',
-        ['github-create-repo'],
-      ),
-      taskSeed(
-        'stripe-create-price',
-        'Create Stripe price',
-        'stripe',
-        'create-price',
-        ['stripe-create-product'],
-        {
-          mode: appSpec.billing.mode,
-        },
-      ),
-      taskSeed(
-        'stripe-capture-secret-key',
-        'Capture Stripe secret key',
-        'stripe',
-        'capture-secret-key',
-        ['stripe-create-product'],
-      ),
-    );
-
-    predeployEnvDependencies.push('stripe-capture-secret-key');
-
-    if (appSpec.billing.mode === 'subscription') {
-      seeds.push(
-        taskSeed(
-          'stripe-setup-customer-portal',
-          'Set up Stripe customer portal',
-          'stripe',
-          'setup-customer-portal',
-          ['stripe-create-product'],
-        ),
-      );
-    }
-  }
-
-  if (appSpec.domain) {
-    seeds.push(
-      taskSeed(
-        'cloudflare-lookup-zone',
-        'Look up Cloudflare DNS zone',
-        'cloudflare',
-        'lookup-zone',
-        ['vercel-deploy-preview'],
-        {
-          domain: appSpec.domain,
-        },
-        'medium',
-        true,
-      ),
-      taskSeed(
-        'cloudflare-create-dns-record',
-        'Create Cloudflare DNS record',
-        'cloudflare',
-        'create-dns-record',
-        ['cloudflare-lookup-zone'],
-        {
-          domain: appSpec.domain,
-        },
-        'high',
-        true,
-      ),
-      taskSeed(
-        'vercel-add-domain',
-        'Add domain to Vercel project',
-        'vercel',
-        'add-domain',
-        ['cloudflare-create-dns-record', 'vercel-deploy-preview'],
-        {
-          domain: appSpec.domain,
-        },
-        'high',
-        true,
-      ),
-      taskSeed(
-        'cloudflare-verify-dns',
-        'Verify DNS configuration',
-        'cloudflare',
-        'verify-dns',
-        ['vercel-add-domain'],
-        {
-          domain: appSpec.domain,
-        },
-        'medium',
-        true,
-      ),
-      taskSeed(
-        'resend-verify-sending-domain',
-        'Verify Resend sending domain',
-        'resend',
-        'verify-sending-domain',
-        ['cloudflare-verify-dns'],
-        {
-          domain: appSpec.domain,
-        },
-      ),
-      taskSeed(
-        'resend-create-api-key',
-        'Create Resend API key',
-        'resend',
-        'create-api-key',
-        ['resend-verify-sending-domain'],
-      ),
-      taskSeed(
-        'resend-capture-api-key',
-        'Capture Resend API key',
-        'resend',
-        'capture-api-key',
-        ['resend-create-api-key'],
-      ),
-    );
-  } else {
-    seeds.push(
-      taskSeed(
-        'resend-create-api-key',
-        'Create Resend API key',
-        'resend',
-        'create-api-key',
-        ['github-create-repo'],
-      ),
-      taskSeed(
-        'resend-capture-api-key',
-        'Capture Resend API key',
-        'resend',
-        'capture-api-key',
-        ['resend-create-api-key'],
-      ),
-    );
-    predeployEnvDependencies.push('resend-capture-api-key');
-  }
-
-  seeds.push(
-    taskSeed(
-      'vercel-sync-predeploy-env-vars',
-      'Sync predeploy environment variables to Vercel',
-      'vercel',
-      'sync-predeploy-env-vars',
-      ['vercel-link-repository', ...predeployEnvDependencies],
-    ),
-    taskSeed(
-      'vercel-deploy-preview',
-      'Deploy preview environment',
-      'vercel',
-      'deploy-preview',
-      ['vercel-sync-predeploy-env-vars'],
-    ),
-  );
-
-  const postdeployEnvDependencies: string[] = [];
-
-  if (appSpec.billing.mode === 'subscription') {
-    seeds.push(
-      taskSeed(
-        'stripe-configure-webhook',
-        'Configure Stripe webhook endpoint',
-        'stripe',
-        'configure-webhook',
-        ['vercel-deploy-preview', 'stripe-create-price'],
-        {
-          previewUrlTaskId: 'vercel-deploy-preview',
-        },
-      ),
-      taskSeed(
-        'stripe-capture-webhook-secret',
-        'Capture Stripe webhook secret',
-        'stripe',
-        'capture-webhook-secret',
-        ['stripe-configure-webhook'],
-      ),
-    );
-    postdeployEnvDependencies.push('stripe-capture-webhook-secret');
-  }
-
-  if (appSpec.domain) {
-    postdeployEnvDependencies.push('resend-capture-api-key');
-  }
-
-  if (postdeployEnvDependencies.length > 0) {
-    seeds.push(
-      taskSeed(
-        'vercel-sync-postdeploy-env-vars',
-        'Sync postdeploy environment variables to Vercel',
-        'vercel',
-        'sync-postdeploy-env-vars',
-        ['vercel-deploy-preview', ...postdeployEnvDependencies],
-      ),
-    );
-  }
-
-  return seeds;
-}
-
 function taskSeed(
   id: string,
   name: string,
@@ -729,19 +358,6 @@ function toTask(seed: PlannerTaskSeed): Task {
     retryPolicy: seed.retryPolicy ?? { ...DEFAULT_RETRY_POLICY },
     timeoutMs: seed.timeoutMs ?? DEFAULT_TIMEOUT_MS,
   };
-}
-
-function estimateMonthlyCostUsd(appSpec: AppSpec): number {
-  let total = 0;
-
-  total += 19;
-  total += 20;
-
-  if (appSpec.domain) {
-    total += 10;
-  }
-
-  return total;
 }
 
 function estimateProjectScanCostUsd(projectScan: ProjectScan): number {

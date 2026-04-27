@@ -1,102 +1,80 @@
-import type { AppSpec } from '@assembler/types';
+import type { ProjectScan } from '@assembler/types';
 import { describe, expect, it } from 'vitest';
 
 import {
-  APP_SPEC_TOOL_NAME,
-  createAnthropicAppSpecParser,
-  createRunPlan,
+  createRunPlanFromProjectScan,
   DependencyGraphError,
-  planPrompt,
   topologicallySortTasks,
 } from '../src/index.js';
-import type { AnthropicMessagesClient } from '../src/index.js';
 
-const sampleAppSpec = {
+const sampleProjectScan = {
   name: 'menugen',
-  description: 'Restaurant menu generator SaaS',
-  auth: {
-    provider: 'clerk',
-    strategy: 'both',
+  framework: 'nextjs',
+  directory: '/tmp/menugen',
+  hasGitRemote: false,
+  detectedProviders: [
+    {
+      provider: 'vercel',
+      confidence: 'high',
+      evidence: ['package.json: dependency next'],
+    },
+    {
+      provider: 'neon',
+      confidence: 'high',
+      evidence: ['.env.example: DATABASE_URL'],
+    },
+    {
+      provider: 'stripe',
+      confidence: 'medium',
+      evidence: ['package.json: dependency stripe'],
+    },
+    {
+      provider: 'clerk',
+      confidence: 'medium',
+      evidence: ['package.json: dependency @clerk/nextjs'],
+    },
+    {
+      provider: 'sentry',
+      confidence: 'medium',
+      evidence: ['package.json: dependency @sentry/nextjs'],
+    },
+    {
+      provider: 'resend',
+      confidence: 'medium',
+      evidence: ['package.json: dependency resend'],
+    },
+  ],
+  requiredEnvVars: [
+    {
+      name: 'DATABASE_URL',
+      provider: 'neon',
+      source: '.env.example',
+      isAutoProvisionable: true,
+    },
+  ],
+  packageJson: {
+    name: 'menugen',
   },
-  billing: {
-    provider: 'stripe',
-    mode: 'subscription',
+  lockfileCheck: {
+    packageManager: 'pnpm',
+    lockfileExists: true,
+    inSync: true,
+    missingFromLockfile: [],
+    extraInLockfile: [],
   },
-  database: {
-    provider: 'neon',
-  },
-  email: {
-    provider: 'resend',
-  },
-  monitoring: {
-    errorTracking: 'sentry',
-    analytics: 'posthog',
-  },
-  hosting: {
-    provider: 'vercel',
-  },
-  dns: {
-    provider: 'cloudflare',
-  },
-} satisfies AppSpec;
+} satisfies ProjectScan;
 
-describe('planner parser', () => {
-  it('parses a prompt into a valid AppSpec through Anthropic tool use', async () => {
-    const client: AnthropicMessagesClient = {
-      messages: {
-        create: () =>
-          Promise.resolve({
-            stop_reason: 'tool_use',
-            content: [
-              {
-                type: 'tool_use',
-                id: 'toolu_123',
-                name: APP_SPEC_TOOL_NAME,
-                input: {
-                  appSpec: {
-                    ...sampleAppSpec,
-                    billing: {
-                      provider: 'stripe',
-                      mode: 'subscription',
-                    },
-                  },
-                  assumptions: [
-                    {
-                      code: 'billing.defaulted_to_subscription',
-                      message: 'Defaulted billing.mode to subscription because the prompt only mentioned payments.',
-                    },
-                  ],
-                },
-              },
-            ],
-          }),
-      },
-    };
-
-    const parser = createAnthropicAppSpecParser({
-      client,
-      model: 'claude-sonnet-4-20250514',
-    });
-
-    const result = await parser.parse(
-      'build menugen — a restaurant menu generator SaaS with subscriptions',
-    );
-
-    expect(result.appSpec.billing.mode).toBe('subscription');
-    expect(result.assumptions).toHaveLength(1);
-  });
-});
-
-describe('planner rule engine', () => {
-  it('generates a draft RunPlan with at least 15 tasks in dependency order', () => {
-    const runPlan = createRunPlan(sampleAppSpec, {
+describe('scan-driven planner', () => {
+  it('generates a draft RunPlan in dependency order', () => {
+    const runPlan = createRunPlanFromProjectScan(sampleProjectScan, {
       now: new Date('2026-03-27T00:00:00.000Z'),
       idGenerator: () => 'run_test',
     });
 
     expect(runPlan.id).toBe('run_test');
     expect(runPlan.status).toBe('draft');
-    expect(runPlan.tasks.length).toBeGreaterThanOrEqual(15);
+    expect(runPlan.projectScan?.name).toBe('menugen');
+    expect(runPlan.tasks.length).toBeGreaterThanOrEqual(13);
 
     const indexByTaskId = new Map(runPlan.tasks.map((task, index) => [task.id, index]));
     for (const task of runPlan.tasks) {
@@ -113,52 +91,35 @@ describe('planner rule engine', () => {
     ).toBe(true);
     expect(runPlan.tasks.find((task) => task.id === 'github-create-repo')?.params).toMatchObject({
       name: 'menugen',
-      description: 'Restaurant menu generator SaaS',
+      description: 'Deploy menugen',
       private: true,
     });
-    expect(runPlan.tasks.find((task) => task.id === 'neon-create-database')?.params).toMatchObject(
-      {
-        databaseName: 'menugen',
-      },
-    );
-    expect(runPlan.tasks.find((task) => task.id === 'vercel-create-project')?.params).toMatchObject(
-      {
-        name: 'menugen',
-        framework: 'nextjs',
-      },
-    );
+    expect(runPlan.tasks.find((task) => task.id === 'github-push-code')?.params).toMatchObject({
+      directory: '/tmp/menugen',
+    });
+    expect(runPlan.tasks.some((task) => task.id === 'github-scaffold-template')).toBe(false);
   });
 
-  it('adds domain and postdeploy email tasks when a custom domain is present', () => {
-    const runPlan = createRunPlan({
-      ...sampleAppSpec,
-      domain: 'menugen.app',
+  it('reuses the existing GitHub repository only when requested', () => {
+    const projectScan = {
+      ...sampleProjectScan,
+      hasGitRemote: true,
+      gitRemoteUrl: 'git@github.com:mariusdale/menugen.git',
+    } satisfies ProjectScan;
+
+    const defaultPlan = createRunPlanFromProjectScan(projectScan);
+    const reusePlan = createRunPlanFromProjectScan(projectScan, { useExistingRepo: true });
+
+    expect(defaultPlan.tasks.some((task) => task.id === 'github-create-repo')).toBe(true);
+    expect(defaultPlan.tasks.some((task) => task.id === 'github-use-existing-repo')).toBe(false);
+    expect(reusePlan.tasks.some((task) => task.id === 'github-create-repo')).toBe(false);
+    expect(reusePlan.tasks.find((task) => task.id === 'github-use-existing-repo')?.params).toEqual({
+      remoteUrl: 'git@github.com:mariusdale/menugen.git',
     });
-
-    expect(runPlan.tasks.some((task) => task.id === 'cloudflare-lookup-zone')).toBe(true);
-    expect(runPlan.tasks.some((task) => task.id === 'cloudflare-create-dns-record')).toBe(true);
-    expect(runPlan.tasks.some((task) => task.id === 'vercel-add-domain')).toBe(true);
-    expect(runPlan.tasks.some((task) => task.id === 'cloudflare-verify-dns')).toBe(true);
-    expect(runPlan.tasks.some((task) => task.id === 'resend-verify-sending-domain')).toBe(true);
-    expect(runPlan.tasks.some((task) => task.id === 'vercel-sync-postdeploy-env-vars')).toBe(
-      true,
-    );
-  });
-
-  it('omits Stripe tasks when billing is disabled', () => {
-    const runPlan = createRunPlan({
-      ...sampleAppSpec,
-      billing: {
-        provider: 'stripe',
-        mode: 'none',
-      },
-    });
-
-    expect(runPlan.tasks.some((task) => task.provider === 'stripe')).toBe(false);
   });
 
   it('detects cycles in a manually corrupted DAG', () => {
-    const runPlan = createRunPlan(sampleAppSpec);
+    const runPlan = createRunPlanFromProjectScan(sampleProjectScan);
     const mutatedTasks = runPlan.tasks.map((task) =>
       task.id === 'github-create-repo'
         ? {
@@ -169,24 +130,5 @@ describe('planner rule engine', () => {
     );
 
     expect(() => topologicallySortTasks(mutatedTasks)).toThrow(DependencyGraphError);
-  });
-
-  it('builds a combined planner result from a parser', async () => {
-    const parser = {
-      parse: () =>
-        Promise.resolve({
-          appSpec: sampleAppSpec,
-          assumptions: [],
-        }),
-    };
-
-    const result = await planPrompt('build menugen', {
-      parser,
-      idGenerator: () => 'planned_run',
-      now: new Date('2026-03-27T00:00:00.000Z'),
-    });
-
-    expect(result.runPlan.id).toBe('planned_run');
-    expect(result.runPlan.appSpec?.name).toBe('menugen');
   });
 });

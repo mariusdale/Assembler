@@ -14,11 +14,10 @@ import type {
 import { HttpError } from '../shared/http.js';
 import { GitHubClient } from './client.js';
 import { loadProjectFiles } from './project.js';
-import { loadGoldenPathTemplate } from './template.js';
 
 export const githubProviderPack: ProviderPack = {
   name: 'github',
-  actions: ['create-repo', 'use-existing-repo', 'push-code', 'commit-template', 'create-initial-commit'],
+  actions: ['create-repo', 'use-existing-repo', 'push-code'],
   preflight: async (creds: Credentials): Promise<PreflightResult> => {
     const errors: PreflightResult['errors'] = [];
 
@@ -196,62 +195,6 @@ export const githubProviderPack: ProviderPack = {
           throw error;
         }
       }
-      case 'commit-template': {
-        const owner = asString(
-          ctx.getOutput('github-create-repo', 'owner'),
-          'github-create-repo.owner',
-        );
-        const repoName = asString(
-          ctx.getOutput('github-create-repo', 'repoName'),
-          'github-create-repo.repoName',
-        );
-        const branch = asString(
-          ctx.getOutput('github-create-repo', 'defaultBranch'),
-          'github-create-repo.defaultBranch',
-        );
-        if (!ctx.appSpec) {
-          throw new Error('GitHub commit-template requires an AppSpec.');
-        }
-        const files = await loadGoldenPathTemplate(ctx.appSpec);
-        let lastCommitSha: string | undefined;
-
-        for (const file of files) {
-          ctx.log('info', `Uploading template file ${file.path}`, {
-            provider: 'github',
-            repoName,
-          });
-          const response = await client.createOrUpdateFile({
-            owner,
-            repo: repoName,
-            path: file.path,
-            content: file.content,
-            message: `Scaffold ${file.path}`,
-            branch,
-          });
-          lastCommitSha = response.commit.sha;
-        }
-
-        return {
-          success: true,
-          outputs: {
-            templateName: 'next-saas',
-            fileCount: files.length,
-            branch,
-            ...(lastCommitSha ? { latestCommitSha: lastCommitSha } : {}),
-          },
-          message: `Uploaded ${files.length} template files to ${owner}/${repoName}.`,
-        };
-      }
-      case 'create-initial-commit':
-        return {
-          success: true,
-          outputs: {
-            branch: ctx.getOutput('github-create-repo', 'defaultBranch'),
-            committed: true,
-            latestCommitSha: ctx.getOutput('github-scaffold-template', 'latestCommitSha'),
-          },
-          message: 'Repository was auto-initialized and template files were committed.',
-        };
       default:
         throw new Error(`Unsupported github action "${task.action}".`);
     }
@@ -337,11 +280,7 @@ function toSlug(value: string): string {
 }
 
 function getProjectName(ctx: ExecutionContext): string {
-  return (
-    ctx.projectScan?.name ??
-    ctx.appSpec?.name ??
-    'assembler-app'
-  );
+  return ctx.projectScan?.name ?? 'assembler-app';
 }
 
 function resolveRepositoryOutput(

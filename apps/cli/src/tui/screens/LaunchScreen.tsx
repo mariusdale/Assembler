@@ -226,7 +226,8 @@ export function LaunchScreen({
           return { ...task, status: 'skipped' as const };
         }
 
-        const { error: _removedError, ...rest } = task;
+        const { error, ...rest } = task;
+        void error;
         return { ...rest, status: 'pending' as const };
       });
 

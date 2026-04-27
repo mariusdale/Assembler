@@ -1,6 +1,6 @@
 # Release Checklist
 
-Use this checklist before a beta tag, a live demo, or a new onboarding wave.
+Use this checklist before a beta tag, release tag, live demo, or onboarding wave.
 
 ## Verification
 
@@ -17,7 +17,8 @@ Use this checklist before a beta tag, a live demo, or a new onboarding wave.
 - README matches the current public beta scope
 - TUI header, home, help, doctor, launch, and status screens use the same product language
 - the public help output does not foreground internal or legacy commands
-- all active docs live under the reorganized `docs/` structure
+- all active docs link to existing files
+- no placeholder apps, template scaffolds, generated caches, or personal notes are committed
 
 ## Demo Readiness
 

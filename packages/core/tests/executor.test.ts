@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type {
-  AppSpec,
   Credentials,
   ProviderPack,
   RollbackResult,
@@ -15,35 +14,6 @@ import type {
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { createExecutor, SqliteRunStateStore } from '../src/index.js';
-
-const sampleAppSpec: AppSpec = {
-  name: 'executor-demo',
-  description: 'Executor runtime integration test',
-  auth: {
-    provider: 'clerk',
-    strategy: 'email',
-  },
-  billing: {
-    provider: 'stripe',
-    mode: 'none',
-  },
-  database: {
-    provider: 'neon',
-  },
-  email: {
-    provider: 'resend',
-  },
-  monitoring: {
-    errorTracking: 'sentry',
-    analytics: 'posthog',
-  },
-  hosting: {
-    provider: 'vercel',
-  },
-  dns: {
-    provider: 'cloudflare',
-  },
-};
 
 const tempDirs: string[] = [];
 
@@ -288,7 +258,6 @@ function createMockRunPlan(options: {
 
   return {
     id: 'run_executor_test',
-    appSpec: sampleAppSpec,
     tasks,
     estimatedCostUsd: 0,
     createdAt: new Date('2026-03-27T00:00:00.000Z'),

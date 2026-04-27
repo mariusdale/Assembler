@@ -1,34 +1,3 @@
-export interface AppSpec {
-  name: string;
-  description: string;
-  domain?: string;
-  auth: {
-    provider: 'clerk';
-    strategy: 'email' | 'google' | 'both';
-  };
-  billing: {
-    provider: 'stripe';
-    mode: 'subscription' | 'one-time' | 'none';
-  };
-  database: {
-    provider: 'neon';
-  };
-  email: {
-    provider: 'resend';
-  };
-  monitoring: {
-    errorTracking: 'sentry';
-    analytics: 'posthog';
-  };
-  hosting: {
-    provider: 'vercel';
-  };
-  dns: {
-    provider: 'cloudflare';
-  };
-  budgetCeiling?: number;
-}
-
 export type ProjectFramework = 'nextjs' | 'remix' | 'astro' | 'node' | 'unknown';
 
 export interface DetectedProvider {
@@ -113,7 +82,6 @@ export type RunPlanStatus =
 export interface RunPlan {
   id: string;
   projectScan?: ProjectScan;
-  appSpec?: AppSpec;
   tasks: Task[];
   estimatedCostUsd: number;
   createdAt: Date;
@@ -202,7 +170,6 @@ export interface RunEvent {
 
 export interface ExecutionContext {
   runId: string;
-  appSpec: AppSpec | undefined;
   projectScan: ProjectScan | undefined;
   getOutput(taskId: string, key: string): unknown;
   getCredential(provider: string): Promise<Credentials>;

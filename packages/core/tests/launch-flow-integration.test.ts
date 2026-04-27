@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type {
-  Credentials,
   ExecutionContext,
   ProjectScan,
   ProviderPack,
@@ -105,7 +104,7 @@ describe('launch flow integration', () => {
 
   it('has correct dependency edges for every task', () => {
     const scan = createFixtureScan('/tmp/fake-project');
-    const plan = createRunPlanFromProjectScan(scan);
+    const plan = createRunPlanFromProjectScan(scan, { useExistingRepo: true });
     const deps = Object.fromEntries(plan.tasks.map((t) => [t.id, t.dependsOn]));
 
     expect(deps['github-create-repo']).toEqual([]);
@@ -138,7 +137,7 @@ describe('launch flow integration', () => {
       { name: 'CLERK_SECRET_KEY', provider: 'clerk', source: '.env.example', isAutoProvisionable: true },
     );
 
-    const plan = createRunPlanFromProjectScan(scan);
+    const plan = createRunPlanFromProjectScan(scan, { useExistingRepo: true });
     const taskIds = plan.tasks.map((t) => t.id);
 
     expect(taskIds).toContain('stripe-capture-keys');
@@ -155,7 +154,7 @@ describe('launch flow integration', () => {
     scan.hasGitRemote = true;
     scan.gitRemoteUrl = 'https://github.com/testuser/sample-nextjs-app.git';
 
-    const plan = createRunPlanFromProjectScan(scan);
+    const plan = createRunPlanFromProjectScan(scan, { useExistingRepo: true });
     const taskIds = plan.tasks.map((t) => t.id);
 
     expect(taskIds).toContain('github-use-existing-repo');

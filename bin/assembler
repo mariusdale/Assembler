@@ -1,5 +1,14 @@
 #!/bin/sh
 
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+SOURCE="$0"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P -- "$(dirname -- "$SOURCE")" && pwd)"
+  SOURCE="$(readlink -- "$SOURCE")"
+  case "$SOURCE" in
+    /*) ;;
+    *) SOURCE="$DIR/$SOURCE" ;;
+  esac
+done
+SCRIPT_DIR="$(cd -P -- "$(dirname -- "$SOURCE")" && pwd)"
 
 exec node "$SCRIPT_DIR/../apps/cli/dist/index.js" "$@"

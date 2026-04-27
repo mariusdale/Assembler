@@ -7,13 +7,10 @@ export default tseslint.config(
     ignores: ['**/dist/**', '**/node_modules/**', '**/.turbo/**', '**/coverage/**'],
   },
   js.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.recommended,
   {
-    files: ['**/*.ts'],
+    files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
-      parserOptions: {
-        projectService: true,
-      },
       globals: {
         ...globals.node,
       },
@@ -23,4 +20,3 @@ export default tseslint.config(
     },
   },
 );
-

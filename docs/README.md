@@ -1,15 +1,24 @@
-# Documentation Index
+# Documentation
 
-Keep product-facing documentation concise and organized by audience.
+This directory contains the active documentation for Assembler.
 
-## Folders
+## Start Here
 
-- `docs/product/` — product promise, supported scope, and user-facing launch guidance.
-- `docs/ops/` — release, support, and operational runbooks.
-- `docs/go-to-market/` — demo scripts, outreach assets, and launch presentation materials.
-- `docs/internal/` — active status, roadmap snapshots, and internal alignment docs.
-- `docs/archive/` — legacy plans, historical status files, and session-era notes that should not drive the current product story.
+- [Architecture](architecture.md) explains the package boundaries and launch flow.
+- [Credential setup](credential-setup.md) lists provider token requirements.
+- [Public beta guide](product/public-beta.md) defines the supported product scope.
+- [Release checklist](ops/release-checklist.md) covers release verification.
+- [Support runbook](ops/support-runbook.md) covers triage for failed launches.
 
-## Repo hygiene rule
+## Repository Automation
 
-Do not add planning documents, exports, or `.docx` files to the repository root. New documentation should live in one of the folders above, and anything historical should default to `docs/archive/`.
+- `.github/workflows/ci.yml` runs lint, typecheck, build, and tests on pushes and pull requests.
+- `.github/workflows/release.yml` runs the same verification on `v*` tags, bundles the CLI, publishes npm, and creates a GitHub Release.
+
+## Documentation Rules
+
+- Keep root-level docs limited to project-wide entry points such as `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`, and `LICENSE`.
+- Put active product docs under `docs/product/`.
+- Put operational runbooks under `docs/ops/`.
+- Do not commit personal notes, generated exports, `.docx` files, or milestone scratchpads.
+- Remove obsolete docs instead of archiving them in the repository.

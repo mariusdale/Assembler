@@ -1,104 +1,107 @@
-# Credential Setup Guide
+# Credential Setup
 
-Assembler needs API tokens for three providers: GitHub, Neon, and Vercel. This guide walks through creating each one.
+Assembler validates provider credentials before it creates resources. Credentials are stored locally in `.assembler/state.db` for the project directory where you run the CLI.
 
-You can also run `assembler setup` for a guided interactive walkthrough that opens the right URLs and validates each token.
+## Required for Launch
 
----
+### GitHub
 
-## 1. GitHub Personal Access Token
+Assembler uses GitHub to create or reuse a repository and push the local project files.
 
-Assembler uses a GitHub token to create repositories and push your code.
-
-### Steps
-
-1. Go to [https://github.com/settings/tokens/new](https://github.com/settings/tokens/new?scopes=repo&description=Assembler)
-2. Set a descriptive name (e.g., "Assembler")
-3. Set expiration — **90 days** is recommended
-4. Under "Select scopes", check **`repo`** (this grants access to create and push to repositories)
-5. Click **Generate token**
-6. **Copy the token immediately** — you won't be able to see it again
-
-### Add to Assembler
+1. Create a personal access token at <https://github.com/settings/tokens>.
+2. Grant the `repo` scope.
+3. Add it to Assembler:
 
 ```bash
-assembler creds add github ghp_your_token_here
+assembler creds add github <github-token>
 ```
 
----
+For teardown of repositories created by Assembler, the token also needs delete permissions. Without that scope, Assembler will explain the manual cleanup step.
 
-## 2. Neon API Key
+### Vercel
 
-Assembler uses a Neon API key to create Postgres database projects.
+Assembler uses Vercel to create projects, link repositories, set env vars, trigger deployments, verify health, and attach domains.
 
-### Steps
-
-1. Go to [https://console.neon.tech/app/settings/api-keys](https://console.neon.tech/app/settings/api-keys)
-2. Click **Create API Key**
-3. **Important**: This must be an **account-level key**, NOT a project-scoped key. Account-level keys can create new projects. Project-scoped keys can only manage a single existing project.
-4. **Copy the key immediately** — you won't be able to see it again
-
-### Add to Assembler
+1. Create a token at <https://vercel.com/account/tokens>.
+2. Use an account or team scope that can manage the target project.
+3. Add it to Assembler:
 
 ```bash
-assembler creds add neon your_neon_api_key_here
+assembler creds add vercel token=<vercel-token>
 ```
 
----
-
-## 3. Vercel API Token
-
-Assembler uses a Vercel token to create projects, link repositories, set environment variables, and trigger deployments.
-
-### Steps
-
-1. Go to [https://vercel.com/account/tokens](https://vercel.com/account/tokens)
-2. Click **Create Token**
-3. Set a descriptive name (e.g., "Assembler")
-4. Select **Full Account** scope
-5. Click **Create**
-6. **Copy the token immediately** — you won't be able to see it again
-
-### Add to Assembler
+For teams, include the team ID:
 
 ```bash
-assembler creds add vercel token=your_vercel_token_here
+assembler creds add vercel token=<vercel-token> teamId=<team-id>
 ```
 
-If you're on a Vercel team, include the team ID:
+Install the Vercel GitHub App for the GitHub account or organization that owns the repository: <https://github.com/apps/vercel>.
+
+## Required When Detected
+
+### Neon
+
+Required when Assembler detects database usage through `DATABASE_URL`, `DIRECT_DATABASE_URL`, Drizzle, Prisma, `pg`, or Neon packages.
 
 ```bash
-assembler creds add vercel token=your_token teamId=team_your_team_id
+assembler creds add neon <neon-account-api-key>
 ```
 
-### Install the Vercel GitHub App
+Use an account-level API key from <https://console.neon.tech/app/settings/api-keys>. Project-scoped keys cannot create new projects.
 
-Assembler links your Vercel project to your GitHub repository. This requires the Vercel GitHub App to be installed on your GitHub account.
+### Clerk
 
-1. Go to [https://github.com/apps/vercel](https://github.com/apps/vercel)
-2. Click **Install**
-3. Choose your account or organization
-4. Grant access to **All repositories** or select the specific repositories you'll use with Assembler
-
----
-
-## Verify your credentials
-
-After adding all three credentials, verify them:
+Required when Assembler detects Clerk packages or env vars.
 
 ```bash
-assembler discover github
-assembler discover neon
-assembler discover vercel
+assembler creds add clerk token=<clerk-secret-key> publishableKey=<clerk-publishable-key>
 ```
 
-Each should show `Connected: true` with your account name.
+### Stripe
 
-## Next steps
-
-With credentials configured, deploy your project:
+Required when Assembler detects Stripe packages or env vars.
 
 ```bash
-cd your-project
-assembler launch
+assembler creds add stripe <stripe-secret-key>
 ```
+
+### Sentry
+
+Required when Assembler detects Sentry packages, env vars, or config files.
+
+```bash
+assembler creds add sentry <sentry-auth-token>
+```
+
+Supported token formats are Sentry tokens with an `sntrys_` prefix or 64-character hexadecimal tokens.
+
+### Resend
+
+Required when Assembler detects Resend packages or env vars.
+
+```bash
+assembler creds add resend <resend-api-key>
+```
+
+Resend keys start with `re_`.
+
+### Cloudflare
+
+Required for `assembler domain add <domain>`.
+
+```bash
+assembler creds add cloudflare <cloudflare-api-token>
+```
+
+The token must be able to read zones and edit DNS records for the target zone.
+
+## Verify
+
+Run:
+
+```bash
+assembler doctor
+```
+
+Doctor checks configured provider credentials and reports remediation steps for missing or invalid credentials.

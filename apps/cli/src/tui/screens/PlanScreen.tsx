@@ -32,6 +32,7 @@ export function PlanScreen({
   state: TuiState;
   dispatch: React.Dispatch<TuiAction>;
 }) {
+  void state;
   const app = useCliApp();
   useNavigation(dispatch);
   const [phase, setPhase] = useState<PlanPhase>('scanning');

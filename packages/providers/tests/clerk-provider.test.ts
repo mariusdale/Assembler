@@ -100,15 +100,14 @@ describe('clerk provider pack', () => {
 
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
-      expect(fetchMock).toHaveBeenCalledWith(
-        'https://api.clerk.com/v1/instance',
-        expect.objectContaining({
-          method: 'GET',
-          headers: expect.objectContaining({
-            Authorization: 'Bearer sk_test_validkey123',
-          }),
-        }),
-      );
+      const call = fetchMock.mock.calls[0];
+      expect(call).toBeDefined();
+      const [url, init] = call as unknown as [string, RequestInit];
+      expect(url).toBe('https://api.clerk.com/v1/instance');
+      expect(init.method).toBe('GET');
+      expect(init.headers).toMatchObject({
+        Authorization: 'Bearer sk_test_validkey123',
+      });
     });
   });
 
@@ -193,7 +192,6 @@ function createExecutionContext(
 ): ExecutionContext {
   return {
     runId: 'run_test',
-    appSpec: undefined,
     projectScan: undefined,
     getOutput(): unknown {
       return undefined;

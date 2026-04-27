@@ -1,68 +1,44 @@
 # Contributing to Assembler
 
-Thanks for your interest in improving Assembler. This guide covers everything you need to go from a fresh clone to a merged PR.
+Thanks for helping improve Assembler. This project is intentionally narrow: it provisions infrastructure and deploys existing Next.js applications. It does not generate application code, create business logic, or maintain a web dashboard.
 
-Assembler is a TUI-first launcher for existing Next.js applications. It **provisions** and **deploys** — it does not generate application code. Keep this in mind when proposing features.
+## Getting Started
 
-## Prerequisites
+Prerequisites:
 
-- Node.js >= 20
-- pnpm via corepack: `corepack enable pnpm`
+- Node.js 20 or newer
+- pnpm through Corepack
 - git
-
-## Setup
 
 ```bash
 git clone https://github.com/mariusdale/Assembler.git
 cd Assembler
+corepack enable pnpm
 pnpm install
 pnpm build
 pnpm test
 ```
 
-To run the CLI from your working copy:
+Run the local CLI:
 
 ```bash
 ./bin/assembler --help
 ```
 
-## Project layout
+## Repository Layout
 
+```text
+apps/cli/            CLI and terminal UI entry point
+packages/types/      Shared TypeScript contracts
+packages/core/       Project scanner, planner, executor, and state store
+packages/providers/  Provider packs for GitHub, Neon, Vercel, Clerk, Stripe, Cloudflare, Sentry, and Resend
+tests/fixtures/      Sample applications used by integration tests
+docs/                Contributor, product, release, and support documentation
 ```
-apps/cli/           # CLI + TUI entry point (commander, ora, chalk)
-packages/types/     # Shared type contracts (ProjectScan, RunPlan, Task, ProviderPack)
-packages/core/      # Planner (rule engine, scanner) and executor (DAG runtime, state store)
-packages/providers/ # Provider packs: github, neon, stripe, vercel, clerk, cloudflare, sentry, resend
-tests/fixtures/     # Sample Next.js app used by integration tests
-templates/          # Optional reference templates (not required to use Assembler)
-```
 
-For architecture detail, provider design notes, and conventions, see [`CLAUDE.md`](CLAUDE.md).
+See [docs/architecture.md](docs/architecture.md) for the main flows, package boundaries, and provider conventions.
 
-## How to add a provider
-
-Assembler currently ships eight live providers. New providers follow a consistent pattern — the cleanest recent examples are `stripe`, `clerk`, `sentry`, and `resend`, which all use a single `capture-keys` action.
-
-1. Create `packages/providers/src/<name>/` with an action file and a provider definition.
-2. Implement `preflight` (validates credentials before any resource-creating call) and the action handlers.
-3. Register the provider in the scan rule engine so it's detected from `package.json` dependencies or `.env.example` variables.
-4. Wire outputs into the Vercel env var sync step if the provider exposes secrets.
-5. Add tests under `packages/providers/tests/` covering the happy path, idempotent reuse, and preflight failure.
-
-Follow the documented conventions:
-
-- **Idempotent.** If a resource already exists, detect and continue — do not fail.
-- **Preflight before execution.** No resource-creating API call runs before credentials are validated.
-- **Remediation hints on every error.** Never surface raw HTTP errors to users.
-- **Checkpoint after every task.** State must be recoverable via `assembler resume <runId>`.
-
-## Code style
-
-- TypeScript strict mode. No `any` unless genuinely unavoidable.
-- ESLint: `pnpm lint`. Fix warnings before opening a PR.
-- No code generation or scaffolding logic in provider packs — that contradicts the product scope.
-
-## Testing
+## Development Commands
 
 ```bash
 pnpm lint
@@ -71,29 +47,41 @@ pnpm build
 pnpm test
 ```
 
-All four must pass before your PR can land. The test suite uses [Vitest](https://vitest.dev/).
+Run all four before opening a pull request. The test suite uses Vitest.
 
-For bugs reproduced against real providers, include:
+## Product Rules
 
-- the `runId`
-- the first failing task
-- the provider involved
-- the remediation text Assembler printed
+- No code generation. Assembler deploys the app in the current project directory.
+- Preflight credentials before resource-creating API calls.
+- Return remediation hints for user-facing failures.
+- Make provider actions idempotent. Existing resources should be reused when possible.
+- Checkpoint task state after every status change so `assembler resume <runId>` can recover safely.
+- Do not add placeholders for providers or apps that are not implemented.
 
-See [`docs/ops/support-runbook.md`](docs/ops/support-runbook.md) for the support triage format.
+## Adding or Changing a Provider
 
-## Pull requests
+1. Add or update the provider package under `packages/providers/src/<provider>/`.
+2. Implement credential validation in `preflight`.
+3. Keep API failures wrapped with actionable remediation text.
+4. Register scan detection in `packages/core/src/planner/project-scanner.ts` only when the provider has a real execution path.
+5. Add or update task planning in `packages/core/src/planner/rule-engine.ts`.
+6. Add provider tests under `packages/providers/tests/`.
+7. Add or update Vercel env sync only for outputs that the provider actually produces.
 
-- Keep PRs tightly scoped. One concern per PR.
-- Reference any related issue in the description.
-- For live-run bugs, include a reproduction snippet and the `runId` from your local state store.
-- Update [`CHANGELOG.md`](CHANGELOG.md) under `## [Unreleased]` if your change is user-visible.
+Good providers are boring in the best way: credential checks are early, actions can be safely retried, and the task outputs are stable contracts.
 
-## Where to ask questions
+## Pull Requests
 
-- **Bugs and feature requests:** [GitHub Issues](https://github.com/mariusdale/Assembler/issues)
-- **Security vulnerabilities:** do not open a public issue — email the maintainer privately instead.
+- Keep PRs focused on one concern.
+- Include the user-facing behavior change in the PR description.
+- Add tests for planner changes, provider behavior, and regression fixes.
+- Update [CHANGELOG.md](CHANGELOG.md) under `## [Unreleased]` for user-visible changes.
+- For live-provider bugs, include the `runId`, first failing task, provider involved, and remediation text shown by Assembler.
+
+## Security
+
+Do not open a public issue for vulnerabilities or leaked secrets. Follow [SECURITY.md](SECURITY.md).
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).

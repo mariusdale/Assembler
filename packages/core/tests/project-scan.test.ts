@@ -271,7 +271,7 @@ describe('lockfile check', () => {
         '      turbo:',
         '        specifier: ^2.0.0',
         '        version: 2.0.0',
-        '  apps/web:',
+        '  apps/example:',
         '    dependencies:',
         '      next:',
         '        specifier: ^15.0.0',
