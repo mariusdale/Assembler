@@ -1,7 +1,7 @@
 {
   "name": "@mariusdale/assembler",
   "version": "0.1.0",
-  "description": "Launch your app from the terminal. Scan, provision, and deploy — no dashboard-hopping.",
+  "description": "Launch your app from the terminal. Scan, provision, and deploy without dashboard hopping.",
   "publishConfig": {
     "access": "public"
   },
@@ -21,6 +21,10 @@
     "neon",
     "github",
     "nextjs",
+    "astro",
+    "static-site",
+    "cloudflare",
+    "infra",
     "provisioning",
     "developer-tools"
   ],

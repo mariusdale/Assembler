@@ -10,7 +10,7 @@ export function Header() {
       <Text bold color="cyan">
         Assembler <Text dimColor>v0.1.0</Text>
       </Text>
-      <Text dimColor>Launch and operate Next.js applications from the terminal</Text>
+      <Text dimColor>Launch and operate existing applications from the terminal</Text>
       <Text dimColor>{shortCwd}</Text>
     </Box>
   );

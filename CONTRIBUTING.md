@@ -1,6 +1,6 @@
 # Contributing to Assembler
 
-Thanks for helping improve Assembler. This project is intentionally narrow: it provisions infrastructure and deploys existing Next.js applications. It does not generate application code, create business logic, or maintain a web dashboard.
+Thanks for helping improve Assembler. The public beta is intentionally narrow today: the stable path provisions infrastructure and deploys existing Next.js applications. The roadmap broadens that through framework strategies, deployment targets, and more providers. Assembler does not generate application code, create business logic, or maintain a hosted service.
 
 ## Getting Started
 
@@ -32,7 +32,7 @@ apps/cli/            CLI and terminal UI entry point
 packages/types/      Shared TypeScript contracts
 packages/core/       Project scanner, planner, executor, and state store
 packages/providers/  Provider packs for GitHub, Neon, Vercel, Clerk, Stripe, Cloudflare, Sentry, and Resend
-tests/fixtures/      Sample applications used by integration tests
+tests/fixtures/      Framework-scoped sample applications used by integration tests
 docs/                Contributor, product, release, and support documentation
 ```
 
@@ -64,7 +64,7 @@ Run all four before opening a pull request. The test suite uses Vitest.
 2. Implement credential validation in `preflight`.
 3. Keep API failures wrapped with actionable remediation text.
 4. Register scan detection in `packages/core/src/planner/project-scanner.ts` only when the provider has a real execution path.
-5. Add or update task planning in `packages/core/src/planner/rule-engine.ts`.
+5. Add or update task planning in `packages/core/src/planner/rule-engine.ts`. Once the framework strategy registry lands, add framework-specific planning under `packages/core/src/planner/strategies/` instead.
 6. Add provider tests under `packages/providers/tests/`.
 7. Add or update Vercel env sync only for outputs that the provider actually produces.
 

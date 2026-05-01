@@ -4,7 +4,7 @@
 
 Do not open a public GitHub issue for vulnerabilities, leaked credentials, or provider-account exposure.
 
-Email the maintainer with:
+Email the maintainer at <mariusndale@gmail.com> with:
 
 - affected version or commit
 - summary of the issue

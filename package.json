@@ -2,7 +2,7 @@
   "name": "assembler",
   "private": true,
   "version": "0.1.0",
-  "description": "TUI-first launcher that provisions infrastructure and deploys existing Next.js applications.",
+  "description": "TUI-first launcher that provisions infrastructure and deploys existing applications.",
   "license": "MIT",
   "author": "Marius Dale",
   "repository": {

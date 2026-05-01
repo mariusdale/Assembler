@@ -1,0 +1,64 @@
+name: Bug report
+description: Report something that is broken or surprising.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please remove secrets, tokens, connection strings, and account IDs from logs before posting.
+  - type: input
+    id: version
+    attributes:
+      label: Assembler version
+      description: Run `assembler --version` or paste the package version.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: command
+    attributes:
+      label: Where did this happen?
+      options:
+        - TUI
+        - assembler launch
+        - assembler plan
+        - assembler doctor
+        - assembler preview
+        - assembler env
+        - assembler domain
+        - assembler creds
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect Assembler to do?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include a minimal project shape or command sequence if possible.
+      placeholder: |
+        1. Run ...
+        2. Choose ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Environment and context
+      description: OS, Node version, package manager, framework, providers involved, first failing task, and sanitized logs.

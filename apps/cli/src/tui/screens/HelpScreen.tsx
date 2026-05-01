@@ -16,7 +16,7 @@ export function HelpScreen({
 
       <Box marginTop={1} flexDirection="column">
         <Text bold>Recommended Workflow</Text>
-        <Text dimColor>Use the TUI as the primary launch experience for existing Next.js applications.</Text>
+        <Text dimColor>Use the TUI as the primary launch experience for existing applications.</Text>
         <Text dimColor>Start with Credentials if providers are missing, Doctor if readiness looks blocked, and Launch when the project is ready.</Text>
       </Box>
 

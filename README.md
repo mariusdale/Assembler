@@ -3,24 +3,18 @@
 [![npm version](https://img.shields.io/npm/v/@mariusdale/assembler)](https://www.npmjs.com/package/@mariusdale/assembler)
 [![CI](https://github.com/mariusdale/Assembler/actions/workflows/ci.yml/badge.svg)](https://github.com/mariusdale/Assembler/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Stability: public beta](https://img.shields.io/badge/stability-public%20beta-yellow)](docs/product/public-beta.md)
+[![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](package.json)
 
-Assembler launches and operates an existing Next.js application from the terminal. It scans the project you already built, provisions the matching infrastructure, deploys to Vercel, and keeps follow-up operations like previews, domains, environment sync, teardown, and resume inside one CLI.
+Provision the infrastructure your app needs and ship it from your terminal.
+
+Assembler is a TUI-first CLI for existing applications. It scans the project you already built, plans the required infrastructure as a task DAG, executes provider actions with checkpoint and resume, and stores local run state in `.assembler/state.db`.
+
+The public beta is honest about its current shape: the Next.js + Vercel path is stable today. Astro, static sites, Cloudflare Pages, and more targets are on the public roadmap.
 
 Assembler does not generate application code or scaffold projects.
 
-## Supported Scope
-
-The current public beta supports:
-
-- existing Next.js project directories
-- GitHub repository creation or reuse
-- Vercel project creation, repository linking, env sync, deployment, and health checks
-- Neon provisioning when database env vars or database packages are detected
-- optional Clerk, Stripe, Sentry, and Resend credential capture and Vercel env sync
-- Cloudflare DNS management for custom domains
-- per-branch preview environments with Neon branch isolation when a production Neon database exists
-
-## Install
+## Quick Start
 
 ```bash
 npm install -g @mariusdale/assembler
@@ -32,7 +26,7 @@ Or run without installing:
 npx @mariusdale/assembler
 ```
 
-## Quick Start
+From an existing Next.js project:
 
 ```bash
 cd your-nextjs-app
@@ -64,6 +58,17 @@ Direct commands are available for automation:
 | `assembler creds add <provider> <token>` | Store provider credentials locally |
 | `assembler creds list` | List configured credential providers |
 
+## Compatibility
+
+| Area | Supported today | Planned |
+|---|---|---|
+| Frameworks | Next.js | Astro, static sites, Remix, SvelteKit, generic Node |
+| Deployment targets | Vercel | Cloudflare Pages, Netlify, Docker-based targets |
+| Providers | GitHub, Vercel, Neon, Clerk, Stripe, Sentry, Resend, Cloudflare DNS | Supabase, Railway, Fly.io, PostHog, Plausible, Linear |
+| State | Local SQLite in `.assembler/state.db` | Optional dashboard and team sync |
+
+See [ROADMAP.md](ROADMAP.md) for the milestone plan and the first contributor issues we want to open.
+
 ## Credentials
 
 Credentials are stored locally in `.assembler/state.db` inside the project you run Assembler from.
@@ -86,6 +91,27 @@ assembler creds add cloudflare <cloudflare-api-token>
 
 See [Credential setup](docs/credential-setup.md) for scopes and provider links.
 
+## How It Works
+
+```text
+Project scan
+  -> planner rules and provider detection
+  -> task DAG
+  -> executor
+  -> ProviderPack actions
+  -> SQLite state and recovery commands
+```
+
+The current planner has Next.js-specific rules. The first roadmap milestone extracts those rules into a framework strategy registry, followed by a deployment target registry so frameworks and hosting targets can evolve independently.
+
+## Why Assembler?
+
+| Compared with | Assembler focuses on |
+|---|---|
+| Terraform | SaaS-native app launch flows without asking users to manage state files |
+| Vercel CLI | Hosting plus database, auth, email, DNS, previews, env sync, and teardown |
+| Bash scripts | Idempotent provider actions, resumable runs, rollback hooks, and local history |
+
 ## Documentation
 
 - [Documentation index](docs/README.md)
@@ -107,6 +133,16 @@ pnpm typecheck
 pnpm build
 pnpm test
 ```
+
+Run the local CLI:
+
+```bash
+./bin/assembler --help
+```
+
+## Contributing
+
+Assembler is maintained in the open and has a roadmap designed for contributors. Start with [CONTRIBUTING.md](CONTRIBUTING.md), then look for issues labeled `good-first-issue` or pick up one of the milestone slices in [ROADMAP.md](ROADMAP.md).
 
 ## License
 

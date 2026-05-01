@@ -1,0 +1,47 @@
+name: Framework or target request
+description: Request support for a framework, runtime, or deployment target.
+title: "[Support]: "
+labels:
+  - framework-request
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Framework, runtime, or target
+      placeholder: Astro, Remix, Cloudflare Pages, Netlify, Docker, etc.
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Request type
+      options:
+        - Framework
+        - Deployment target
+        - Provider
+        - Runtime
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: project-shape
+    attributes:
+      label: Typical project shape
+      description: Dependencies, config files, build command, output directory, runtime requirements, and env vars.
+      placeholder: |
+        package.json dependencies:
+        build command:
+        output directory:
+        required env vars:
+    validations:
+      required: true
+  - type: textarea
+    id: deploy-flow
+    attributes:
+      label: Desired deploy flow
+      description: Where should Assembler deploy it and what provider resources should it provision?
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Link docs, example repos, or provider API references.

@@ -5,6 +5,7 @@ This directory contains the active documentation for Assembler.
 ## Start Here
 
 - [Architecture](architecture.md) explains the package boundaries and launch flow.
+- [Roadmap](../ROADMAP.md) lists the open-source milestones and contributor entry points.
 - [Credential setup](credential-setup.md) lists provider token requirements.
 - [Public beta guide](product/public-beta.md) defines the supported product scope.
 - [Release checklist](ops/release-checklist.md) covers release verification.
@@ -17,7 +18,7 @@ This directory contains the active documentation for Assembler.
 
 ## Documentation Rules
 
-- Keep root-level docs limited to project-wide entry points such as `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`, and `LICENSE`.
+- Keep root-level docs limited to project-wide entry points such as `README.md`, `ROADMAP.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`, and `LICENSE`.
 - Put active product docs under `docs/product/`.
 - Put operational runbooks under `docs/ops/`.
 - Do not commit personal notes, generated exports, `.docx` files, or milestone scratchpads.

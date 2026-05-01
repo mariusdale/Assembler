@@ -1,6 +1,6 @@
 # Architecture
 
-Assembler is a scan-driven deployment CLI. Users bring an existing Next.js app, then Assembler plans and executes provider tasks needed to launch it.
+Assembler is a scan-driven deployment CLI. Users bring an existing app, then Assembler plans and executes provider tasks needed to launch it. The stable public beta path is Next.js + Vercel; the roadmap expands this through framework strategies and deployment targets.
 
 ## Packages
 
@@ -9,7 +9,7 @@ apps/cli/            Commander commands and Ink terminal UI
 packages/types/      Shared contracts for scans, run plans, tasks, providers, events, and credentials
 packages/core/       Project scanner, planner, executor, SQLite-backed state store
 packages/providers/  Provider packs and API clients
-tests/fixtures/      Sample Next.js app used by integration tests
+tests/fixtures/      Framework-scoped sample apps used by integration tests
 ```
 
 ## Launch Flow
@@ -25,6 +25,8 @@ scan project
 ```
 
 The active planner entry point is `createRunPlanFromProjectScan`. It uses evidence from `package.json`, env example files, framework files, and git metadata. There is no prompt-to-app or template-generation path.
+
+Today, framework-specific planning still lives in `rule-engine.ts`. The first roadmap milestone extracts that into a `FrameworkStrategy` registry so new frameworks can be added without broadening a single conditional block.
 
 ## Provider Model
 
