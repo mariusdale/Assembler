@@ -8,7 +8,7 @@ export function Header() {
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Text bold color="cyan">
-        Assembler <Text dimColor>v0.1.0</Text>
+        Assembler <Text dimColor>v0.1.1</Text>
       </Text>
       <Text dimColor>Launch and operate existing applications from the terminal</Text>
       <Text dimColor>{shortCwd}</Text>

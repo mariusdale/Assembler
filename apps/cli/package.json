@@ -1,6 +1,6 @@
 {
   "name": "@mariusdale/assembler",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Launch your app from the terminal. Scan, provision, and deploy without dashboard hopping.",
   "publishConfig": {
     "access": "public"
@@ -29,7 +29,7 @@
     "developer-tools"
   ],
   "bin": {
-    "assembler": "./dist/index.js"
+    "assembler": "dist/index.js"
   },
   "main": "./dist/index.js",
   "files": [

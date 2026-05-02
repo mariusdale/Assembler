@@ -38,7 +38,7 @@ export function createProgram(): Command {
   program
     .name('assembler')
     .description('Launch and operate your existing application from the terminal.')
-    .version('0.1.0')
+    .version('0.1.1')
     .showHelpAfterError()
     .addHelpText(
       'after',
