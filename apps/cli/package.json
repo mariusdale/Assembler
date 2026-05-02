@@ -1,6 +1,6 @@
 {
   "name": "@mariusdale/assembler",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Launch your app from the terminal. Scan, provision, and deploy without dashboard hopping.",
   "publishConfig": {
     "access": "public"
