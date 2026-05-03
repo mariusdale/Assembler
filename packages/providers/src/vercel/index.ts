@@ -1,9 +1,13 @@
 import type {
   Credentials,
+  DeployIntent,
+  DeploymentTarget,
+  DeploymentTaskSeed,
   DiscoveryResult,
   ExecutionContext,
   PreflightResult,
   ProviderPack,
+  RiskLevel,
   RollbackResult,
   Task,
   TaskResult,
@@ -13,6 +17,85 @@ import type {
 
 import { HttpError } from '../shared/http.js';
 import { VercelClient } from './client.js';
+
+export const vercelDeploymentTarget: DeploymentTarget = {
+  name: 'vercel',
+  providerName: 'vercel',
+  supports(intent: DeployIntent): boolean {
+    return intent.framework !== 'unknown' && intent.artifact !== 'docker';
+  },
+  plan(intent, ctx) {
+    const predeployDependencies = ['github-push-code'];
+    if (ctx.requiresProvider('neon')) {
+      predeployDependencies.push('neon-capture-database-url');
+    }
+    if (ctx.requiresProvider('stripe')) {
+      predeployDependencies.push('stripe-capture-keys');
+    }
+    if (ctx.requiresProvider('clerk')) {
+      predeployDependencies.push('clerk-capture-keys');
+    }
+    if (ctx.requiresProvider('sentry')) {
+      predeployDependencies.push('sentry-capture-dsn');
+    }
+    if (ctx.requiresProvider('resend')) {
+      predeployDependencies.push('resend-capture-api-key');
+    }
+
+    const projectParams = vercelProjectParams(intent, ctx.appSlug);
+
+    return [
+      deploymentTaskSeed(
+        'vercel-create-project',
+        'Create Vercel project',
+        'vercel',
+        'create-project',
+        [ctx.repoTaskId],
+        projectParams,
+        'medium',
+        true,
+      ),
+      deploymentTaskSeed(
+        'vercel-link-repository',
+        'Link Vercel to GitHub repository',
+        'vercel',
+        'link-repository',
+        ['vercel-create-project', 'github-push-code'],
+        projectParams,
+        'medium',
+        true,
+      ),
+      deploymentTaskSeed(
+        'vercel-sync-predeploy-env-vars',
+        'Sync environment variables to Vercel',
+        'vercel',
+        'sync-predeploy-env-vars',
+        ['vercel-link-repository', ...predeployDependencies],
+      ),
+      deploymentTaskSeed(
+        'vercel-deploy-preview',
+        'Deploy to Vercel preview',
+        'vercel',
+        'deploy-preview',
+        ['vercel-sync-predeploy-env-vars'],
+      ),
+      deploymentTaskSeed(
+        'vercel-wait-for-ready',
+        'Wait for Vercel deployment readiness',
+        'vercel',
+        'wait-for-ready',
+        ['vercel-deploy-preview'],
+      ),
+      deploymentTaskSeed(
+        'vercel-health-check',
+        'Verify deployment health',
+        'vercel',
+        'health-check',
+        ['vercel-wait-for-ready'],
+      ),
+    ];
+  },
+};
 
 export const vercelProviderPack: ProviderPack = {
   name: 'vercel',
@@ -120,7 +203,7 @@ export const vercelProviderPack: ProviderPack = {
     switch (task.action) {
       case 'create-project': {
         const projectName = asOptionalString(task.params.name) ?? toSlug(getProjectName(ctx));
-        const framework = asOptionalString(task.params.framework) ?? 'nextjs';
+        const framework = asOptionalString(task.params.framework);
 
         // Idempotency: check if project already exists
         try {
@@ -147,7 +230,7 @@ export const vercelProviderPack: ProviderPack = {
 
         const project = await client.createProject({
           name: projectName,
-          framework,
+          ...(framework ? { framework } : {}),
         });
 
         return {
@@ -164,7 +247,7 @@ export const vercelProviderPack: ProviderPack = {
           asOptionalString(ctx.getOutput('vercel-create-project', 'projectName')) ??
           asOptionalString(task.params.name) ??
           toSlug(getProjectName(ctx));
-        const framework = asOptionalString(task.params.framework) ?? 'nextjs';
+        const framework = asOptionalString(task.params.framework);
         const repoFullName = asString(
           resolveRepoOutput(ctx, 'repoFullName'),
           'github repository repoFullName',
@@ -184,11 +267,11 @@ export const vercelProviderPack: ProviderPack = {
         const project = await createOrResolveLinkedProject(client, {
           projectId,
           projectName,
-          framework,
           repoFullName,
           repoId,
           ownerId,
           productionBranch,
+          ...(framework ? { framework } : {}),
         });
 
         return {
@@ -647,6 +730,38 @@ function collectEnvVars(
   return vars;
 }
 
+function vercelProjectParams(intent: DeployIntent, name: string): Record<string, unknown> {
+  return {
+    name,
+    framework: intent.framework,
+    ...(intent.buildCommand ? { buildCommand: intent.buildCommand } : {}),
+    ...(intent.outputDirectory ? { outputDirectory: intent.outputDirectory } : {}),
+    ...(intent.nodeVersion ? { nodeVersion: intent.nodeVersion } : {}),
+  };
+}
+
+function deploymentTaskSeed(
+  id: string,
+  name: string,
+  provider: string,
+  action: string,
+  dependsOn: string[] = [],
+  params: Record<string, unknown> = {},
+  risk: RiskLevel = 'low',
+  requiresApproval = false,
+): DeploymentTaskSeed {
+  return {
+    id,
+    name,
+    provider,
+    action,
+    params,
+    dependsOn,
+    risk,
+    requiresApproval,
+  };
+}
+
 function resolveRepoOutput(ctx: ExecutionContext, key: string): unknown {
   return (
     ctx.getOutput('github-use-existing-repo', key) ??
@@ -741,7 +856,7 @@ async function createOrResolveLinkedProject(
   input: {
     projectId: string;
     projectName: string;
-    framework: string;
+    framework?: string;
     repoFullName: string;
     repoId: string | number;
     ownerId: string | number;
@@ -777,7 +892,7 @@ async function createOrResolveLinkedProject(
 
   return client.createProject({
     name: input.projectName,
-    framework: input.framework,
+    ...(input.framework ? { framework: input.framework } : {}),
     gitRepository: {
       type: 'github',
       repo: input.repoFullName,

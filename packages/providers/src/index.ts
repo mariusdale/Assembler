@@ -7,7 +7,7 @@ import { neonProviderPack } from './neon/index.js';
 import { resendProviderPack } from './resend/index.js';
 import { sentryProviderPack } from './sentry/index.js';
 import { stripeProviderPack } from './stripe/index.js';
-import { vercelProviderPack } from './vercel/index.js';
+import { vercelDeploymentTarget, vercelProviderPack } from './vercel/index.js';
 
 export const plannedProviders = [
   'github',
@@ -45,6 +45,7 @@ export {
   resendProviderPack,
   sentryProviderPack,
   stripeProviderPack,
+  vercelDeploymentTarget,
   vercelProviderPack,
 };
 

@@ -1,13 +1,16 @@
-import type { ProjectFramework, ProjectScan } from '@assembler/types';
+import type {
+  DeploymentTargetPlanContext,
+  DeploymentTargetRegistry,
+  ProjectFramework,
+  ProjectScan,
+} from '@assembler/types';
 
 import type { PlannerTaskSeed } from './types.js';
 import { nextjsStrategy } from './strategies/nextjs.js';
 
-export interface FrameworkStrategyContext {
-  projectScan: ProjectScan;
-  appSlug: string;
-  repoTaskId: string;
-  requiresProvider(name: string): boolean;
+export interface FrameworkStrategyContext extends DeploymentTargetPlanContext {
+  deploymentTargets: DeploymentTargetRegistry;
+  deploymentTargetPreference?: string;
 }
 
 export interface FrameworkStrategy {
