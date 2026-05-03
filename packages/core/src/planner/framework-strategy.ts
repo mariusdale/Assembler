@@ -1,0 +1,41 @@
+import type { ProjectFramework, ProjectScan } from '@assembler/types';
+
+import type { PlannerTaskSeed } from './types.js';
+import { nextjsStrategy } from './strategies/nextjs.js';
+
+export interface FrameworkStrategyContext {
+  projectScan: ProjectScan;
+  appSlug: string;
+  repoTaskId: string;
+  requiresProvider(name: string): boolean;
+}
+
+export interface FrameworkStrategy {
+  readonly framework: ProjectFramework;
+  matches(scan: ProjectScan): boolean;
+  plan(ctx: FrameworkStrategyContext): PlannerTaskSeed[];
+}
+
+export interface FrameworkRegistry {
+  register(strategy: FrameworkStrategy): void;
+  resolve(scan: ProjectScan): FrameworkStrategy | undefined;
+}
+
+export function createFrameworkRegistry(): FrameworkRegistry {
+  const strategies: FrameworkStrategy[] = [];
+
+  return {
+    register(strategy) {
+      strategies.push(strategy);
+    },
+    resolve(scan) {
+      return strategies.find((strategy) => strategy.matches(scan));
+    },
+  };
+}
+
+export function createDefaultFrameworkRegistry(): FrameworkRegistry {
+  const registry = createFrameworkRegistry();
+  registry.register(nextjsStrategy);
+  return registry;
+}

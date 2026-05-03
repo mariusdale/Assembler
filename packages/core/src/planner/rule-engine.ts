@@ -1,5 +1,6 @@
 import type { ProjectScan, RiskLevel, RunPlan, Task } from '@assembler/types';
 
+import { createDefaultFrameworkRegistry } from './framework-strategy.js';
 import type { CreateRunPlanOptions, PlannerTaskSeed } from './types.js';
 
 const DEFAULT_RETRY_POLICY = {
@@ -165,91 +166,18 @@ function createTaskSeedsFromProjectScan(
     );
   }
 
-  if (projectScan.framework === 'nextjs') {
-    const predeployDependencies = ['github-push-code'];
-    if (requiresProvider(projectScan, 'neon')) {
-      predeployDependencies.push('neon-capture-database-url');
-    }
-    if (requiresProvider(projectScan, 'stripe')) {
-      predeployDependencies.push('stripe-capture-keys');
-    }
-    if (requiresProvider(projectScan, 'clerk')) {
-      predeployDependencies.push('clerk-capture-keys');
-    }
-    if (requiresProvider(projectScan, 'sentry')) {
-      predeployDependencies.push('sentry-capture-dsn');
-    }
-    if (requiresProvider(projectScan, 'resend')) {
-      predeployDependencies.push('resend-capture-api-key');
-    }
-
-    seeds.push(
-      taskSeed(
-        'vercel-create-project',
-        'Create Vercel project',
-        'vercel',
-        'create-project',
-        [repoTaskId],
-        {
-          name: appSlug,
-          framework: 'nextjs',
-        },
-        'medium',
-        true,
-      ),
-    );
-    seeds.push(
-      taskSeed(
-        'vercel-link-repository',
-        'Link Vercel to GitHub repository',
-        'vercel',
-        'link-repository',
-        ['vercel-create-project', 'github-push-code'],
-        {
-          name: appSlug,
-          framework: 'nextjs',
-        },
-        'medium',
-        true,
-      ),
-    );
-    seeds.push(
-      taskSeed(
-        'vercel-sync-predeploy-env-vars',
-        'Sync environment variables to Vercel',
-        'vercel',
-        'sync-predeploy-env-vars',
-        ['vercel-link-repository', ...predeployDependencies],
-      ),
-    );
-    seeds.push(
-      taskSeed(
-        'vercel-deploy-preview',
-        'Deploy to Vercel preview',
-        'vercel',
-        'deploy-preview',
-        ['vercel-sync-predeploy-env-vars'],
-      ),
-    );
-    seeds.push(
-      taskSeed(
-        'vercel-wait-for-ready',
-        'Wait for Vercel deployment readiness',
-        'vercel',
-        'wait-for-ready',
-        ['vercel-deploy-preview'],
-      ),
-    );
-    seeds.push(
-      taskSeed(
-        'vercel-health-check',
-        'Verify deployment health',
-        'vercel',
-        'health-check',
-        ['vercel-wait-for-ready'],
-      ),
-    );
-  }
+  const frameworkRegistry = options.frameworkRegistry ?? createDefaultFrameworkRegistry();
+  const frameworkStrategy = frameworkRegistry.resolve(projectScan);
+  seeds.push(
+    ...(frameworkStrategy?.plan({
+      projectScan,
+      appSlug,
+      repoTaskId,
+      requiresProvider(name) {
+        return requiresProvider(projectScan, name);
+      },
+    }) ?? []),
+  );
 
   return seeds;
 }
@@ -364,10 +292,6 @@ function estimateProjectScanCostUsd(projectScan: ProjectScan): number {
   let total = 0;
 
   if (requiresProvider(projectScan, 'neon')) {
-    total += 0;
-  }
-
-  if (projectScan.framework === 'nextjs') {
     total += 0;
   }
 
