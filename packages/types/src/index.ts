@@ -1,5 +1,7 @@
 export type ProjectFramework = 'nextjs' | 'remix' | 'astro' | 'node' | 'unknown';
 
+export type DeployArtifactKind = 'ssr-node' | 'ssr-edge' | 'static' | 'docker';
+
 export interface DetectedProvider {
   provider: string;
   confidence: 'high' | 'medium' | 'low';
@@ -35,6 +37,15 @@ export interface ProjectScan {
   lockfileCheck: LockfileCheck;
 }
 
+export interface DeployIntent {
+  artifact: DeployArtifactKind;
+  framework: ProjectFramework;
+  buildCommand?: string;
+  outputDirectory?: string;
+  nodeVersion?: string;
+  envVarKeys: string[];
+}
+
 export type TaskStatus =
   | 'pending'
   | 'running'
@@ -50,6 +61,39 @@ export type RiskLevel = 'low' | 'medium' | 'high';
 export interface RetryPolicy {
   maxRetries: number;
   backoffMs: number;
+}
+
+export interface DeploymentTaskSeed {
+  id: string;
+  name: string;
+  provider: string;
+  action: string;
+  params?: Record<string, unknown>;
+  dependsOn?: string[];
+  outputs?: Record<string, unknown>;
+  risk?: RiskLevel;
+  requiresApproval?: boolean;
+  retryPolicy?: RetryPolicy;
+  timeoutMs?: number;
+}
+
+export interface DeploymentTargetPlanContext {
+  projectScan: ProjectScan;
+  appSlug: string;
+  repoTaskId: string;
+  requiresProvider(name: string): boolean;
+}
+
+export interface DeploymentTarget {
+  readonly name: string;
+  readonly providerName: string;
+  supports(intent: DeployIntent): boolean;
+  plan(intent: DeployIntent, ctx: DeploymentTargetPlanContext): DeploymentTaskSeed[];
+}
+
+export interface DeploymentTargetRegistry {
+  register(target: DeploymentTarget): void;
+  selectFor(intent: DeployIntent, preference?: string): DeploymentTarget | undefined;
 }
 
 export interface Task {

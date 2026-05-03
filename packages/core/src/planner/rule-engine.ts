@@ -1,5 +1,6 @@
 import type { ProjectScan, RiskLevel, RunPlan, Task } from '@assembler/types';
 
+import { createDefaultDeploymentTargetRegistry } from './deployment-target-registry.js';
 import { createDefaultFrameworkRegistry } from './framework-strategy.js';
 import type { CreateRunPlanOptions, PlannerTaskSeed } from './types.js';
 
@@ -167,12 +168,18 @@ function createTaskSeedsFromProjectScan(
   }
 
   const frameworkRegistry = options.frameworkRegistry ?? createDefaultFrameworkRegistry();
+  const deploymentTargets =
+    options.deploymentTargetRegistry ?? createDefaultDeploymentTargetRegistry();
   const frameworkStrategy = frameworkRegistry.resolve(projectScan);
   seeds.push(
     ...(frameworkStrategy?.plan({
       projectScan,
       appSlug,
       repoTaskId,
+      deploymentTargets,
+      ...(options.deploymentTargetPreference
+        ? { deploymentTargetPreference: options.deploymentTargetPreference }
+        : {}),
       requiresProvider(name) {
         return requiresProvider(projectScan, name);
       },
