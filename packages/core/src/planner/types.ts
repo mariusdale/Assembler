@@ -1,9 +1,12 @@
 import type { Task } from '@assembler/types';
 
+import type { FrameworkRegistry } from './framework-strategy.js';
+
 export interface CreateRunPlanOptions {
   now?: Date;
   idGenerator?: () => string;
   useExistingRepo?: boolean;
+  frameworkRegistry?: FrameworkRegistry;
 }
 
 export interface PlannerTaskSeed {
