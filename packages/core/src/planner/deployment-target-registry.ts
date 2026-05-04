@@ -1,5 +1,6 @@
 import type { DeployIntent, DeploymentTarget, DeploymentTargetRegistry } from '@assembler/types';
 
+import { cloudflarePagesDeploymentTarget } from './targets/cloudflare-pages.js';
 import { vercelDeploymentTarget } from './targets/vercel.js';
 
 export function createDeploymentTargetRegistry(
@@ -29,5 +30,5 @@ export function createDeploymentTargetRegistry(
 }
 
 export function createDefaultDeploymentTargetRegistry(): DeploymentTargetRegistry {
-  return createDeploymentTargetRegistry([vercelDeploymentTarget]);
+  return createDeploymentTargetRegistry([vercelDeploymentTarget, cloudflarePagesDeploymentTarget]);
 }

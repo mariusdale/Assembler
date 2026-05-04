@@ -56,10 +56,13 @@ describe('deployment target registry', () => {
     expect(registry.selectFor(nextjsIntent, 'docker')).toBeUndefined();
   });
 
-  it('pre-registers Vercel in the default deployment target registry', () => {
+  it('pre-registers Vercel as default and Cloudflare Pages as explicit static target', () => {
     const registry = createDefaultDeploymentTargetRegistry();
 
     expect(registry.selectFor(nextjsIntent)?.name).toBe('vercel');
+    expect(registry.selectFor(staticIntent)?.name).toBe('vercel');
+    expect(registry.selectFor(staticIntent, 'cloudflare-pages')?.name).toBe('cloudflare-pages');
+    expect(registry.selectFor(staticIntent, 'cloudflare')?.name).toBe('cloudflare-pages');
     expect(registry.selectFor(unsupportedIntent)).toBeUndefined();
   });
 

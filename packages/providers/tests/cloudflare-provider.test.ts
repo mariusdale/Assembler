@@ -200,6 +200,77 @@ describe('cloudflare provider pack', () => {
       expect(result.message).toMatch(/already exists/);
     });
   });
+
+  describe('apply: Cloudflare Pages', () => {
+    it('creates a Pages project from GitHub repository outputs', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_input: string | URL, init?: RequestInit) => {
+          expect(init?.method).toBe('POST');
+          expect(JSON.parse(String(init?.body))).toMatchObject({
+            name: 'docs-site',
+            build_config: {
+              build_command: 'vite build',
+              destination_dir: 'dist',
+            },
+            source: {
+              type: 'github',
+              config: {
+                owner: 'mariusdale',
+                repo_name: 'docs-site',
+                production_branch: 'main',
+              },
+            },
+          });
+
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                success: true,
+                errors: [],
+                result: {
+                  id: 'pages_project_123',
+                  name: 'docs-site',
+                  subdomain: 'docs-site.pages.dev',
+                },
+              }),
+              { status: 200 },
+            ),
+          );
+        }),
+      );
+
+      const task = createTask('create-pages-project');
+      task.params.name = 'docs-site';
+      task.params.buildCommand = 'vite build';
+      task.params.outputDirectory = 'dist';
+
+      const result = await cloudflareProviderPack.apply(
+        task,
+        createExecutionContext({
+          credentials: { accountId: 'account_123', token: 'cf-test-token' },
+          outputs: {
+            'github-create-repo.owner': 'mariusdale',
+            'github-create-repo.repoName': 'docs-site',
+            'github-create-repo.defaultBranch': 'main',
+          },
+        }),
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.outputs.projectId).toBe('pages_project_123');
+      expect(result.outputs.projectUrl).toBe('https://docs-site.pages.dev');
+    });
+
+    it('requires an account id for Pages actions', async () => {
+      const task = createTask('create-pages-project');
+      task.params.name = 'docs-site';
+
+      await expect(
+        cloudflareProviderPack.apply(task, createExecutionContext()),
+      ).rejects.toThrow(/account id/);
+    });
+  });
 });
 
 function createTask(action: Task['action']): Task {
@@ -219,17 +290,20 @@ function createTask(action: Task['action']): Task {
   };
 }
 
-function createExecutionContext(): ExecutionContext {
+function createExecutionContext(options: {
+  credentials?: Record<string, string>;
+  outputs?: Record<string, unknown>;
+} = {}): ExecutionContext {
   return {
     runId: 'run_test',
     projectScan: undefined,
-    getOutput(): unknown {
-      return undefined;
+    getOutput(taskId: string, key: string): unknown {
+      return options.outputs?.[`${taskId}.${key}`];
     },
     getCredential(provider: string): Promise<Credentials> {
       return Promise.resolve({
         provider,
-        values: { token: 'cf-test-token' },
+        values: options.credentials ?? { token: 'cf-test-token' },
       });
     },
     log(): void {},

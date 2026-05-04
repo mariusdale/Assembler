@@ -5,5 +5,6 @@ export * from './framework-strategy.js';
 export * from './strategies/astro.js';
 export * from './strategies/nextjs.js';
 export * from './strategies/static.js';
+export * from './targets/cloudflare-pages.js';
 export * from './targets/vercel.js';
 export * from './types.js';

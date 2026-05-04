@@ -55,4 +55,24 @@ describe('static site strategy', () => {
       outputDirectory: 'build',
     });
   });
+
+  it('routes static deploy intents to Cloudflare Pages when selected', async () => {
+    const projectDirectory = await mkdtemp(join(tmpdir(), 'assembler-static-cf-'));
+    await writeFile(join(projectDirectory, 'index.html'), '<h1>Hello Pages</h1>');
+
+    const scan = await scanProject(projectDirectory);
+    const plan = createRunPlanFromProjectScan(scan, {
+      deploymentTargetPreference: 'cloudflare-pages',
+    });
+
+    expect(plan.tasks.map((task) => task.id)).toContain('cloudflare-pages-trigger-deployment');
+    expect(
+      plan.tasks.find((task) => task.id === 'cloudflare-pages-create-project')?.params,
+    ).toMatchObject({
+      artifact: 'static',
+      framework: 'static',
+      outputDirectory: '.',
+    });
+    expect(plan.tasks.map((task) => task.id)).not.toContain('vercel-create-project');
+  });
 });
