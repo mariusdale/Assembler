@@ -1,6 +1,6 @@
 # Roadmap
 
-Assembler is launching as a focused public beta: Next.js and Astro deploy through Vercel today, and the next work is about making the architecture broader without regressing the working path.
+Assembler is launching as a focused public beta: Next.js, Astro, and static sites deploy through Vercel today, with Cloudflare Pages available for explicit static/edge targets. The next work is about making configuration and operations broader without regressing the working path.
 
 Two principles guide the roadmap:
 
@@ -58,7 +58,7 @@ Deliverables:
 - `tests/fixtures/static/sample-site/`
 - tests for package-based and no-build static sites
 
-Status: planned. Scope: medium. Depends on M1 and M2.
+Status: shipped. Scope: medium. Depends on M1 and M2.
 
 ## M5 - Cloudflare Pages Target
 
@@ -71,7 +71,7 @@ Deliverables:
 - static deploy and build-from-git support
 - `docs/targets/cloudflare-pages.md`
 
-Status: planned. Scope: large. Depends on M2.
+Status: shipped. Scope: large. Depends on M2.
 
 ## M6 - Project Config File
 
@@ -110,11 +110,8 @@ Status: planned. Scope: extra-large.
 
 ## Good First Issues To Seed
 
-- Generalize Stripe webhook detection to multiple common paths.
-- Generalize Clerk dependency detection to official Clerk packages.
-- Add a placeholder `--target` flag for `assembler launch`.
 - Write the JSON schema for `assembler.config.json`.
 - Add `assembler doctor` checks for config schema and framework consistency.
 - Move CLI provider and framework labels into a dedicated labels module.
 - Add `assembler config show`.
-- Add a no-build static site fixture.
+- Add smoke-test docs for `assembler plan --target cloudflare-pages`.

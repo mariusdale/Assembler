@@ -88,13 +88,13 @@ Resend keys start with `re_`.
 
 ### Cloudflare
 
-Required for `assembler domain add <domain>`.
+Required for `assembler domain add <domain>`. Cloudflare Pages targeting also needs the account id.
 
 ```bash
-assembler creds add cloudflare <cloudflare-api-token>
+assembler creds add cloudflare token=<cloudflare-api-token> accountId=<cloudflare-account-id>
 ```
 
-The token must be able to read zones and edit DNS records for the target zone.
+The token must be able to read zones and edit DNS records for domain workflows. For `--target cloudflare-pages`, it must also be able to manage Pages projects in the configured account.
 
 ## Verify
 

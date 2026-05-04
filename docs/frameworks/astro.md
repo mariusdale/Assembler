@@ -1,6 +1,6 @@
 # Astro Support
 
-Assembler can scan Astro projects and plan a Vercel deployment through the framework strategy registry.
+Assembler can scan Astro projects and plan deployment through the framework strategy registry. Vercel is the default target; static Astro deploy intents can be routed to Cloudflare Pages with `--target cloudflare-pages`.
 
 ## Detection
 
@@ -12,11 +12,11 @@ Astro is detected when `package.json` includes an `astro` dependency. The scanne
 
 ## Deployment
 
-The Astro strategy emits a deployment intent for the default Vercel target:
+The Astro strategy emits a deployment intent for the selected compatible target:
 
 - static Astro projects use the `static` artifact
 - configs with `output: 'server'` use the `ssr-node` artifact
 - `npm` script `build` is passed through as the build command when present
 - `dist` is used as the output directory
 
-Current scope is plan creation and execution through the existing Vercel provider actions. Cloudflare Pages and other targets are tracked in the roadmap.
+Current scope is plan creation and execution through the existing Vercel provider actions, plus explicit static targeting through Cloudflare Pages.

@@ -15,7 +15,7 @@ tests/fixtures/      Framework-scoped sample apps for integration tests
 docs/                Product, architecture, release, and support documentation
 ```
 
-The current public beta path is Next.js or Astro deployed through Vercel. The roadmap expands this through more framework strategies and deployment target adapters.
+The current public beta path is Next.js, Astro, or static sites deployed through Vercel. Cloudflare Pages is available when users explicitly select it for static/edge deploy intents. The roadmap expands this through more framework strategies, configuration, and operational surfaces.
 
 ## Core Abstractions
 

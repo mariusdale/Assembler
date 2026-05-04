@@ -8,6 +8,8 @@ Assembler is a scan-driven CLI for existing apps. The working beta path now cove
 
 - Next.js deployment through Vercel
 - Astro deployment through Vercel
+- static site deployment through Vercel
+- static/edge deployment through Cloudflare Pages when explicitly selected
 - GitHub repository creation or reuse
 - Neon database provisioning
 - optional Clerk, Stripe, Sentry, Resend, and Cloudflare DNS provider flows
@@ -22,6 +24,7 @@ M1 - Framework Strategy Registry: shipped.
 - `FrameworkStrategy` lives in `packages/core/src/planner/framework-strategy.ts`.
 - Next.js planning lives in `packages/core/src/planner/strategies/nextjs.ts`.
 - Astro planning lives in `packages/core/src/planner/strategies/astro.ts`.
+- Static site planning lives in `packages/core/src/planner/strategies/static.ts`.
 - `rule-engine.ts` owns shared provider setup and delegates framework-specific deploy work.
 
 M2 - Deployment Target Abstraction: shipped.
@@ -29,6 +32,7 @@ M2 - Deployment Target Abstraction: shipped.
 - `DeployIntent`, `DeploymentTarget`, and `DeploymentTargetRegistry` are shared contracts.
 - Framework strategies emit deploy intents instead of Vercel task sequences.
 - Vercel is the default deployment target and receives the framework/build/output params from the intent.
+- Cloudflare Pages is registered as an explicit target for static and edge intents.
 
 M3 - Astro Support: shipped.
 
@@ -37,6 +41,20 @@ M3 - Astro Support: shipped.
 - Astro configs with `output: 'server'` emit `ssr-node` deploy intents.
 - `tests/fixtures/astro/sample-app/` provides the first non-Next.js fixture.
 - `docs/frameworks/astro.md` documents current scope.
+
+M4 - Static Site Flow: shipped.
+
+- `static` is part of `ProjectFramework`.
+- No-build root `index.html` projects scan as static sites.
+- Package-based static projects with `dist/`, `build/`, `_site/`, or `out/` output scan as static sites.
+- `tests/fixtures/static/sample-site/` covers the no-build path.
+
+M5 - Cloudflare Pages Target: shipped.
+
+- `cloudflarePagesDeploymentTarget` handles explicit `static` and `ssr-edge` deploy intents.
+- Cloudflare provider actions can create Pages projects, trigger deployments, and check deployment readiness.
+- `assembler plan --target cloudflare-pages` and `assembler launch --target cloudflare-pages` pass target preference to planning.
+- `docs/targets/cloudflare-pages.md` documents current scope.
 
 ## Remaining Launch Work
 
@@ -58,24 +76,17 @@ M3 - Astro Support: shipped.
    - Astro project with `output: 'server'`
    - env detection for `DATABASE_URL`
 
-4. Publish launch framing:
-   - README says Next.js and Astro work today.
-   - Roadmap says M1-M3 shipped and M4-M7 are next.
+4. Smoke test static and target selection:
+   - no-build `index.html` site
+   - package-based static site with `dist/index.html`
+   - `assembler plan --target cloudflare-pages`
+
+5. Publish launch framing:
+   - README says Next.js, Astro, static sites, and explicit Cloudflare Pages targeting work today.
+   - Roadmap says M1-M5 shipped and M6-M7 are next.
    - Public beta guide stays conservative about supported execution paths.
 
 ## Next Implementation Milestones
-
-M4 - Static Site Flow.
-
-- Add `static` to `ProjectFramework`.
-- Add a static strategy for no-build `index.html` projects and package-based builds that output `dist`, `build`, `_site`, or `out`.
-- Add `tests/fixtures/static/sample-site/`.
-
-M5 - Cloudflare Pages Target.
-
-- Add Cloudflare Pages provider actions.
-- Add `cloudflarePagesTarget`.
-- Route `static` and `ssr-edge` intents to Cloudflare Pages when explicitly selected.
 
 M6 - Project Config File.
 
@@ -90,9 +101,8 @@ M7 - Desktop Deployments Dashboard.
 
 ## Good First Issues
 
-- Add `--target` parsing to `assembler plan` and `assembler launch`, wired to `deploymentTargetPreference`.
 - Write the JSON schema for `assembler.config.json`.
 - Add config consistency checks to `assembler doctor`.
 - Move CLI/TUI framework and provider labels into a shared labels module.
-- Add a no-build static site fixture.
 - Add docs for the deployment target registry extension pattern.
+- Add smoke-test docs for `assembler plan --target cloudflare-pages`.

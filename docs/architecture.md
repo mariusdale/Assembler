@@ -1,6 +1,6 @@
 # Architecture
 
-Assembler is a scan-driven deployment CLI. Users bring an existing app, then Assembler plans and executes provider tasks needed to launch it. The stable public beta path is Next.js or Astro deployed through Vercel; the roadmap expands this through more framework strategies and deployment targets.
+Assembler is a scan-driven deployment CLI. Users bring an existing app, then Assembler plans and executes provider tasks needed to launch it. The stable public beta path is Next.js, Astro, or static sites deployed through Vercel, with Cloudflare Pages available when explicitly selected for static/edge deploy intents.
 
 ## Packages
 
@@ -26,7 +26,7 @@ scan project
 
 The active planner entry point is `createRunPlanFromProjectScan`. It uses evidence from `package.json`, env example files, framework files, and git metadata. There is no prompt-to-app or template-generation path.
 
-Framework-specific planning lives in `FrameworkStrategy` modules under `packages/core/src/planner/strategies/`. Strategies emit deployment intents, and the deployment target registry selects a compatible target such as Vercel. Shared provider setup remains in `rule-engine.ts`.
+Framework-specific planning lives in `FrameworkStrategy` modules under `packages/core/src/planner/strategies/`. Strategies emit deployment intents, and the deployment target registry selects a compatible target such as Vercel or Cloudflare Pages. Shared provider setup remains in `rule-engine.ts`.
 
 ## Provider Model
 
@@ -50,7 +50,7 @@ Provider actions should be idempotent. If a repository, project, env var, DNS re
 - Stripe: validate configured keys and capture them for deployment
 - Sentry: discover project DSN and capture it for deployment
 - Resend: validate API key and capture it for deployment
-- Cloudflare: look up zones, create DNS records, verify DNS
+- Cloudflare: look up zones, create DNS records, verify DNS, create Pages projects, trigger Pages deployments
 
 ## State
 

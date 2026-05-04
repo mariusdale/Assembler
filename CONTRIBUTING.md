@@ -1,6 +1,6 @@
 # Contributing to Assembler
 
-Thanks for helping improve Assembler. The public beta is intentionally narrow today: the stable path provisions infrastructure and deploys existing Next.js and Astro applications. The roadmap broadens that through more framework strategies, deployment targets, and providers. Assembler does not generate application code, create business logic, or maintain a hosted service.
+Thanks for helping improve Assembler. The public beta is intentionally narrow today: the stable path provisions infrastructure and deploys existing Next.js, Astro, and static site projects. Vercel is the default deployment target, and Cloudflare Pages is available for explicit static/edge target selection. The roadmap broadens that through more framework strategies, deployment targets, and providers. Assembler does not generate application code, create business logic, or maintain a hosted service.
 
 ## Getting Started
 
