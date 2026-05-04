@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Initial public beta of Assembler — a TUI-first launcher for existing Next.js applications.
+- Initial public beta of Assembler — a TUI-first launcher for existing Next.js and Astro applications.
+- Astro framework strategy with static and server-output deployment intents.
 - Launch path across GitHub, Neon, Vercel with optional Clerk, Stripe, Sentry, and Resend integrations.
 - Cloudflare DNS management for custom domains via `assembler domain add`.
 - Preview environments per git branch via `assembler preview`.

@@ -2,9 +2,9 @@
 
 ## Product Promise
 
-Assembler is a TUI-first launcher for **existing Next.js applications**. The supported public beta path is intentionally narrow so the launch experience stays reliable:
+Assembler is a TUI-first launcher for **existing Next.js and Astro applications**. The supported public beta path is intentionally narrow so the launch experience stays reliable:
 
-- existing Next.js project directory
+- existing Next.js or Astro project directory
 - GitHub and Vercel required
 - Neon as the default database path when `DATABASE_URL` is detected
 - Clerk, Stripe, Sentry, and Resend as optional detected integrations
@@ -26,7 +26,7 @@ Assembler is a TUI-first launcher for **existing Next.js applications**. The sup
 - provider APIs can still introduce transient delays or retries
 - preview deployments may return `401` when Vercel Deployment Protection stays enabled
 - schema migrations remain a manual app-level step after launch
-- the beta assumes a relatively standard Next.js build and deployment setup
+- the beta assumes a relatively standard Next.js or Astro build and deployment setup
 
 ## Support Expectations
 

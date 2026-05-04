@@ -2,6 +2,7 @@ node_modules/
 .pnpm-store/
 dist/
 .turbo/
+.astro/
 coverage/
 .assembler/
 .DS_Store

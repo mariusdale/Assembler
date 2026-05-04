@@ -1,6 +1,6 @@
 # Roadmap
 
-Assembler is launching as a focused public beta: Next.js + Vercel is stable today, and the next work is about making the architecture broad without regressing the working path.
+Assembler is launching as a focused public beta: Next.js and Astro deploy through Vercel today, and the next work is about making the architecture broader without regressing the working path.
 
 Two principles guide the roadmap:
 
@@ -18,7 +18,7 @@ Deliverables:
 - registry-driven planning in `rule-engine.ts`
 - tests proving Next.js plan parity
 
-Status: planned. Scope: medium.
+Status: shipped. Scope: medium.
 
 ## M2 - Deployment Target Abstraction
 
@@ -31,7 +31,7 @@ Deliverables:
 - Vercel target adapter
 - tests for capability matching and explicit preference
 
-Status: planned. Scope: medium-large. Depends on M1.
+Status: shipped. Scope: medium-large. Depends on M1.
 
 ## M3 - Astro Support
 
@@ -45,7 +45,7 @@ Deliverables:
 - `tests/fixtures/astro/sample-app/`
 - `docs/frameworks/astro.md`
 
-Status: planned. Scope: large. Depends on M1 and M2.
+Status: shipped. Scope: large. Depends on M1 and M2.
 
 ## M4 - Static Site Flow
 
@@ -112,8 +112,6 @@ Status: planned. Scope: extra-large.
 
 - Generalize Stripe webhook detection to multiple common paths.
 - Generalize Clerk dependency detection to official Clerk packages.
-- Verify Astro labels in CLI and TUI rendering.
-- Source Vercel framework params from task params instead of hardcoded Next.js defaults.
 - Add a placeholder `--target` flag for `assembler launch`.
 - Write the JSON schema for `assembler.config.json`.
 - Add `assembler doctor` checks for config schema and framework consistency.

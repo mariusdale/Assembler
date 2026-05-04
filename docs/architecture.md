@@ -1,6 +1,6 @@
 # Architecture
 
-Assembler is a scan-driven deployment CLI. Users bring an existing app, then Assembler plans and executes provider tasks needed to launch it. The stable public beta path is Next.js + Vercel; the roadmap expands this through framework strategies and deployment targets.
+Assembler is a scan-driven deployment CLI. Users bring an existing app, then Assembler plans and executes provider tasks needed to launch it. The stable public beta path is Next.js or Astro deployed through Vercel; the roadmap expands this through more framework strategies and deployment targets.
 
 ## Packages
 
@@ -26,7 +26,7 @@ scan project
 
 The active planner entry point is `createRunPlanFromProjectScan`. It uses evidence from `package.json`, env example files, framework files, and git metadata. There is no prompt-to-app or template-generation path.
 
-Today, framework-specific planning still lives in `rule-engine.ts`. The first roadmap milestone extracts that into a `FrameworkStrategy` registry so new frameworks can be added without broadening a single conditional block.
+Framework-specific planning lives in `FrameworkStrategy` modules under `packages/core/src/planner/strategies/`. Strategies emit deployment intents, and the deployment target registry selects a compatible target such as Vercel. Shared provider setup remains in `rule-engine.ts`.
 
 ## Provider Model
 

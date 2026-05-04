@@ -10,7 +10,7 @@ Provision the infrastructure your app needs and ship it from your terminal.
 
 Assembler is a TUI-first CLI for existing applications. It scans the project you already built, plans the required infrastructure as a task DAG, executes provider actions with checkpoint and resume, and stores local run state in `.assembler/state.db`.
 
-The public beta is honest about its current shape: the Next.js + Vercel path is stable today. Astro, static sites, Cloudflare Pages, and more targets are on the public roadmap.
+The public beta is honest about its current shape: the Next.js and Astro paths deploy through Vercel today. Static sites, Cloudflare Pages, and more targets are on the public roadmap.
 
 Assembler does not generate application code or scaffold projects.
 
@@ -26,10 +26,10 @@ Or run without installing:
 npx @mariusdale/assembler
 ```
 
-From an existing Next.js project:
+From an existing Next.js or Astro project:
 
 ```bash
-cd your-nextjs-app
+cd your-app
 assembler
 ```
 
@@ -62,7 +62,7 @@ Direct commands are available for automation:
 
 | Area | Supported today | Planned |
 |---|---|---|
-| Frameworks | Next.js | Astro, static sites, Remix, SvelteKit, generic Node |
+| Frameworks | Next.js, Astro | Static sites, Remix, SvelteKit, generic Node |
 | Deployment targets | Vercel | Cloudflare Pages, Netlify, Docker-based targets |
 | Providers | GitHub, Vercel, Neon, Clerk, Stripe, Sentry, Resend, Cloudflare DNS | Supabase, Railway, Fly.io, PostHog, Plausible, Linear |
 | State | Local SQLite in `.assembler/state.db` | Optional dashboard and team sync |
@@ -102,7 +102,7 @@ Project scan
   -> SQLite state and recovery commands
 ```
 
-The current planner has Next.js-specific rules. The first roadmap milestone extracts those rules into a framework strategy registry, followed by a deployment target registry so frameworks and hosting targets can evolve independently.
+The planner uses framework strategies that emit deployment intents. Deployment targets, starting with Vercel, decide whether they can satisfy those intents, so frameworks and hosting targets can evolve independently.
 
 ## Why Assembler?
 
@@ -116,6 +116,7 @@ The current planner has Next.js-specific rules. The first roadmap milestone extr
 
 - [Documentation index](docs/README.md)
 - [Architecture](docs/architecture.md)
+- [Astro framework support](docs/frameworks/astro.md)
 - [Public beta guide](docs/product/public-beta.md)
 - [Credential setup](docs/credential-setup.md)
 - [Release checklist](docs/ops/release-checklist.md)

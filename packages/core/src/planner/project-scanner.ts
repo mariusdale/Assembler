@@ -22,6 +22,22 @@ const ENV_EXAMPLE_FILENAMES = [
 ] as const;
 
 const DATABASE_ENV_VARS = new Set(['DATABASE_URL', 'DIRECT_DATABASE_URL']);
+const CLERK_PACKAGES = [
+  '@clerk/nextjs',
+  '@clerk/astro',
+  '@clerk/clerk-react',
+  '@clerk/clerk-js',
+] as const;
+const STRIPE_WEBHOOK_PATHS = [
+  'app/api/webhooks/stripe/route.ts',
+  'app/api/webhooks/stripe/route.js',
+  'pages/api/webhooks/stripe.ts',
+  'pages/api/webhooks/stripe.js',
+  'src/pages/api/webhooks/stripe.ts',
+  'src/pages/api/webhooks/stripe.js',
+  'src/pages/api/stripe/webhook.ts',
+  'src/pages/api/stripe/webhook.js',
+] as const;
 
 export async function scanProject(directory: string): Promise<ProjectScan> {
   const projectDirectory = resolve(directory);
@@ -158,8 +174,10 @@ async function detectProviders(
   const dependencies = getDependencyMap(packageJson);
   const packageEvidence = new Map<string, string[]>();
 
-  if (dependencies.has('next')) {
-    addProviderEvidence(providers, 'vercel', 'high', 'package.json: dependency next');
+  if (dependencies.has('next') || dependencies.has('astro')) {
+    for (const dependency of collectMatchingDependencies(dependencies, ['next', 'astro'])) {
+      addProviderEvidence(providers, 'vercel', 'high', dependency);
+    }
   }
   if (
     dependencies.has('@neondatabase/serverless') ||
@@ -178,8 +196,9 @@ async function detectProviders(
       ]),
     ]);
   }
-  if (dependencies.has('@clerk/nextjs')) {
-    packageEvidence.set('clerk', ['package.json: dependency @clerk/nextjs']);
+  const clerkEvidence = collectMatchingDependencies(dependencies, [...CLERK_PACKAGES]);
+  if (clerkEvidence.length > 0) {
+    packageEvidence.set('clerk', clerkEvidence);
   }
   if (dependencies.has('stripe')) {
     packageEvidence.set('stripe', ['package.json: dependency stripe']);
@@ -199,33 +218,34 @@ async function detectProviders(
     }
   }
 
-  const fileChecks = await Promise.all([
-    maybeExists(directory, 'drizzle.config.ts'),
-    maybeExists(directory, 'prisma/schema.prisma'),
-    maybeExists(directory, 'app/api/webhooks/stripe/route.ts'),
-    maybeExists(directory, 'middleware.ts'),
-    maybeExists(directory, 'sentry.client.config.ts'),
-    maybeExists(directory, 'sentry.server.config.ts'),
-  ]);
+  const [drizzleConfig, prismaSchema, stripeWebhookPath, middleware, sentryClient, sentryServer] =
+    await Promise.all([
+      maybeExists(directory, 'drizzle.config.ts'),
+      maybeExists(directory, 'prisma/schema.prisma'),
+      firstExistingPath(directory, [...STRIPE_WEBHOOK_PATHS]),
+      maybeExists(directory, 'middleware.ts'),
+      maybeExists(directory, 'sentry.client.config.ts'),
+      maybeExists(directory, 'sentry.server.config.ts'),
+    ]);
 
-  if (fileChecks[0]) {
+  if (drizzleConfig) {
     addProviderEvidence(providers, 'neon', 'high', 'drizzle.config.ts');
   }
-  if (fileChecks[1]) {
+  if (prismaSchema) {
     addProviderEvidence(providers, 'neon', 'high', 'prisma/schema.prisma');
   }
-  if (fileChecks[2]) {
-    addProviderEvidence(providers, 'stripe', 'high', 'app/api/webhooks/stripe/route.ts');
+  if (stripeWebhookPath) {
+    addProviderEvidence(providers, 'stripe', 'high', stripeWebhookPath);
   }
-  if (fileChecks[3] && dependencies.has('@clerk/nextjs')) {
+  if (middleware && clerkEvidence.length > 0) {
     addProviderEvidence(providers, 'clerk', 'high', 'middleware.ts');
   }
-  if (fileChecks[4] || fileChecks[5]) {
+  if (sentryClient || sentryServer) {
     addProviderEvidence(
       providers,
       'sentry',
       'high',
-      fileChecks[4] ? 'sentry.client.config.ts' : 'sentry.server.config.ts',
+      sentryClient ? 'sentry.client.config.ts' : 'sentry.server.config.ts',
     );
   }
 
@@ -239,6 +259,19 @@ async function maybeExists(directory: string, relativePath: string): Promise<boo
   } catch {
     return false;
   }
+}
+
+async function firstExistingPath(
+  directory: string,
+  relativePaths: string[],
+): Promise<string | undefined> {
+  for (const relativePath of relativePaths) {
+    if (await maybeExists(directory, relativePath)) {
+      return relativePath;
+    }
+  }
+
+  return undefined;
 }
 
 function collectMatchingDependencies(
