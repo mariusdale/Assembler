@@ -35,10 +35,10 @@ export interface DoctorResult {
 
 export interface CliApp {
   scan(): Promise<ProjectScan>;
-  createPlan(projectScan: ProjectScan, options?: { useExistingRepo?: boolean }): RunPlan;
+  createPlan(projectScan: ProjectScan, options?: CreatePlanOptions): RunPlan;
   preflight(runPlan: RunPlan): Promise<PreflightCheckResults>;
   executePlan(runPlan: RunPlan): Promise<RunPlan>;
-  launch(): Promise<LaunchResult>;
+  launch(options?: CreatePlanOptions): Promise<LaunchResult>;
   execute(runId?: string): Promise<RunPlan>;
   status(runId?: string): Promise<RunPlan>;
   listRuns(): Promise<RunPlan[]>;
@@ -55,6 +55,11 @@ export interface CliApp {
   listCredentials(): Promise<string[]>;
   discover(provider: string): Promise<DiscoveryResult>;
   doctor(): Promise<DoctorResult>;
+}
+
+export interface CreatePlanOptions {
+  useExistingRepo?: boolean;
+  deploymentTargetPreference?: string;
 }
 
 export interface PreviewResult {
@@ -111,7 +116,7 @@ export function createCliApp(cwd = process.cwd()): CliApp {
     scan: async (): Promise<ProjectScan> => {
       return scanProject(cwd);
     },
-    createPlan: (projectScan: ProjectScan, planOptions?: { useExistingRepo?: boolean }): RunPlan => {
+    createPlan: (projectScan: ProjectScan, planOptions?: CreatePlanOptions): RunPlan => {
       const runPlan: RunPlan = {
         ...createRunPlanFromProjectScan(projectScan, planOptions),
         status: 'approved',
@@ -126,10 +131,10 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       const result = await executor.execute({ runPlan });
       return result.runPlan;
     },
-    launch: async (): Promise<LaunchResult> => {
+    launch: async (options?: CreatePlanOptions): Promise<LaunchResult> => {
       const projectScan = await scanProject(cwd);
       const runPlan: RunPlan = {
-        ...createRunPlanFromProjectScan(projectScan),
+        ...createRunPlanFromProjectScan(projectScan, options),
         status: 'approved',
       };
 

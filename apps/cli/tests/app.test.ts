@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { SqliteRunStateStore } from '@assembler/core';
-import type { RunPlan } from '@assembler/types';
+import type { ProjectScan, RunPlan } from '@assembler/types';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { createCliApp } from '../src/app.js';
@@ -57,6 +57,19 @@ describe('cli app', () => {
     await expect(app.execute(runPlan.id)).rejects.toThrow(
       'Preflight checks failed:',
     );
+  });
+
+  it('passes deployment target preferences into created plans', () => {
+    const cwd = createTempDirectory();
+    const app = createCliApp(cwd);
+
+    const plan = app.createPlan(createProjectScan(), {
+      deploymentTargetPreference: 'vercel',
+    });
+
+    expect(plan.tasks.find((task) => task.id === 'vercel-create-project')?.params).toMatchObject({
+      framework: 'nextjs',
+    });
   });
 });
 
@@ -120,5 +133,32 @@ function createRunPlan(): RunPlan {
     estimatedCostUsd: 0,
     createdAt: new Date('2026-03-27T00:00:00.000Z'),
     status: 'approved',
+  };
+}
+
+function createProjectScan(): ProjectScan {
+  return {
+    name: 'targeted-app',
+    framework: 'nextjs',
+    directory: '/tmp/targeted-app',
+    hasGitRemote: false,
+    detectedProviders: [
+      {
+        provider: 'vercel',
+        confidence: 'high',
+        evidence: ['test'],
+      },
+    ],
+    requiredEnvVars: [],
+    packageJson: {
+      name: 'targeted-app',
+    },
+    lockfileCheck: {
+      packageManager: 'pnpm',
+      lockfileExists: true,
+      inSync: true,
+      missingFromLockfile: [],
+      extraInLockfile: [],
+    },
   };
 }

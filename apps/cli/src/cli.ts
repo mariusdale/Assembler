@@ -9,10 +9,15 @@ import type { ProjectScan, RunPlan, Task } from '@assembler/types';
 import { createCliApp } from './app.js';
 import type { PreflightCheckResults, EnvPullResult, EnvPushResult, DomainAddResult, PreviewResult, PreviewTeardownResult, DoctorResult } from './app.js';
 
+interface TargetCommandOptions {
+  target?: string;
+}
+
 const FRAMEWORK_LABELS: Record<string, string> = {
   nextjs: 'Next.js',
   remix: 'Remix',
   astro: 'Astro',
+  static: 'Static site',
   node: 'Node.js',
   unknown: 'Unknown',
 };
@@ -48,7 +53,8 @@ export function createProgram(): Command {
   program
     .command('launch')
     .description('Scan the current project, plan infrastructure, and execute the run.')
-    .action(async () => {
+    .option('--target <target>', 'Preferred deployment target or provider, e.g. vercel.')
+    .action(async (options: TargetCommandOptions) => {
       const cliApp = getApp();
 
       const scanSpinner = ora('Scanning project...').start();
@@ -77,7 +83,7 @@ export function createProgram(): Command {
       }
 
       const lc = projectScan.lockfileCheck;
-      if (!lc.lockfileExists) {
+      if (requiresLockfile(projectScan) && !lc.lockfileExists) {
         console.log();
         console.log(chalk.red('✗ No lockfile found (package-lock.json, pnpm-lock.yaml, or yarn.lock).'));
         console.log(chalk.dim('  → Run your package manager\'s install command to generate one, then commit it.'));
@@ -85,7 +91,7 @@ export function createProgram(): Command {
         process.exitCode = 1;
         return;
       }
-      if (!lc.inSync) {
+      if (requiresLockfile(projectScan) && !lc.inSync) {
         console.log();
         console.log(chalk.red(`✗ ${lc.packageManager ?? 'Package'} lockfile is out of sync with package.json.`));
         if (lc.missingFromLockfile.length > 0) {
@@ -101,7 +107,10 @@ export function createProgram(): Command {
         return;
       }
 
-      const runPlan = cliApp.createPlan(projectScan, { useExistingRepo });
+      const runPlan = cliApp.createPlan(projectScan, {
+        useExistingRepo,
+        ...(options.target ? { deploymentTargetPreference: options.target } : {}),
+      });
 
       console.log();
       console.log(chalk.bold('Checking credentials...'));
@@ -276,7 +285,8 @@ export function createProgram(): Command {
   program
     .command('plan')
     .description('Scan the project and show the execution plan without running it.')
-    .action(async () => {
+    .option('--target <target>', 'Preferred deployment target or provider, e.g. vercel.')
+    .action(async (options: TargetCommandOptions) => {
       const cliApp = getApp();
 
       const scanSpinner = ora('Scanning project...').start();
@@ -294,7 +304,9 @@ export function createProgram(): Command {
 
       printDetectedServices(projectScan);
 
-      const runPlan = cliApp.createPlan(projectScan);
+      const runPlan = cliApp.createPlan(projectScan, {
+        ...(options.target ? { deploymentTargetPreference: options.target } : {}),
+      });
 
       console.log();
       console.log(chalk.bold('Checking credentials...'));
@@ -723,6 +735,20 @@ function getCostHint(task: Task): string | undefined {
   if (task.provider === 'neon' && task.action === 'create-project') return 'free tier';
   if (task.provider === 'vercel' && task.action === 'create-project') return 'free tier';
   return undefined;
+}
+
+function requiresLockfile(scan: ProjectScan): boolean {
+  if (scan.framework !== 'static') {
+    return true;
+  }
+
+  const scripts = scan.packageJson.scripts;
+  if (typeof scripts !== 'object' || scripts === null || Array.isArray(scripts)) {
+    return false;
+  }
+
+  const build = (scripts as Record<string, unknown>).build;
+  return typeof build === 'string' && build.trim() !== '';
 }
 
 async function executeWithSpinners(

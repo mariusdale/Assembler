@@ -17,4 +17,15 @@ describe('assembler CLI', () => {
     expect(help).not.toContain('Show persisted run events for a run.');
     expect(help).not.toContain('Validate stored credentials against a provider account.');
   });
+
+  it('exposes deployment target preference on plan and launch', () => {
+    const program = createProgram();
+    const planHelp = program.commands.find((command) => command.name() === 'plan')?.helpInformation();
+    const launchHelp = program.commands
+      .find((command) => command.name() === 'launch')
+      ?.helpInformation();
+
+    expect(planHelp).toContain('--target <target>');
+    expect(launchHelp).toContain('--target <target>');
+  });
 });
