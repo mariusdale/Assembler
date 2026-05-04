@@ -39,11 +39,13 @@ const STRIPE_WEBHOOK_PATHS = [
   'src/pages/api/stripe/webhook.js',
 ] as const;
 
+const STATIC_OUTPUT_DIRECTORIES = ['dist', 'build', '_site', 'out'] as const;
+
 export async function scanProject(directory: string): Promise<ProjectScan> {
   const projectDirectory = resolve(directory);
   const packageJson = await readPackageJson(projectDirectory);
   const packageName = getPackageName(packageJson) ?? basename(projectDirectory);
-  const framework = detectFramework(packageJson);
+  const framework = await detectFramework(projectDirectory, packageJson);
   const [gitRemoteUrl, requiredEnvVars, detectedProviders, lockfileCheck] = await Promise.all([
     getGitRemoteUrl(projectDirectory),
     collectEnvRequirements(projectDirectory),
@@ -67,8 +69,16 @@ export async function scanProject(directory: string): Promise<ProjectScan> {
 }
 
 async function readPackageJson(directory: string): Promise<Record<string, unknown>> {
-  const raw = await readFile(join(directory, 'package.json'), 'utf8');
-  return JSON.parse(raw) as Record<string, unknown>;
+  try {
+    const raw = await readFile(join(directory, 'package.json'), 'utf8');
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch (error) {
+    if (isNodeError(error) && error.code === 'ENOENT' && (await maybeExists(directory, 'index.html'))) {
+      return {};
+    }
+
+    throw error;
+  }
 }
 
 function getPackageName(packageJson: Record<string, unknown>): string | undefined {
@@ -80,7 +90,10 @@ function sanitizeProjectName(value: string): string {
   return value.replace(/^@[^/]+\//, '').trim();
 }
 
-function detectFramework(packageJson: Record<string, unknown>): ProjectFramework {
+async function detectFramework(
+  directory: string,
+  packageJson: Record<string, unknown>,
+): Promise<ProjectFramework> {
   const dependencies = getDependencyMap(packageJson);
 
   if (dependencies.has('next')) {
@@ -92,11 +105,34 @@ function detectFramework(packageJson: Record<string, unknown>): ProjectFramework
   if (dependencies.has('astro')) {
     return 'astro';
   }
+  if (await hasStaticSiteEvidence(directory, packageJson)) {
+    return 'static';
+  }
   if (dependencies.size > 0) {
     return 'node';
   }
 
   return 'unknown';
+}
+
+async function hasStaticSiteEvidence(
+  directory: string,
+  packageJson: Record<string, unknown>,
+): Promise<boolean> {
+  if (await maybeExists(directory, 'index.html')) {
+    return true;
+  }
+
+  if (!hasBuildScript(packageJson)) {
+    return false;
+  }
+
+  return (
+    (await firstExistingPath(
+      directory,
+      STATIC_OUTPUT_DIRECTORIES.map((outputDirectory) => join(outputDirectory, 'index.html')),
+    )) !== undefined
+  );
 }
 
 async function getGitRemoteUrl(directory: string): Promise<string | undefined> {
@@ -351,6 +387,16 @@ function getDependencyMap(packageJson: Record<string, unknown>): Map<string, str
   return dependencies;
 }
 
+function hasBuildScript(packageJson: Record<string, unknown>): boolean {
+  const scripts = packageJson.scripts;
+  if (typeof scripts !== 'object' || scripts === null || Array.isArray(scripts)) {
+    return false;
+  }
+
+  const build = (scripts as Record<string, unknown>).build;
+  return typeof build === 'string' && build.trim() !== '';
+}
+
 function inferProviderFromEnvVar(name: string): string | undefined {
   if (DATABASE_ENV_VARS.has(name)) {
     return 'neon';
@@ -372,6 +418,10 @@ function inferProviderFromEnvVar(name: string): string | undefined {
 
 function isAutoProvisionableEnvVar(name: string): boolean {
   return inferProviderFromEnvVar(name) !== undefined;
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error;
 }
 
 const LOCKFILE_TO_MANAGER: Record<string, PackageManager> = {

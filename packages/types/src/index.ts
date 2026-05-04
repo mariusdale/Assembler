@@ -1,4 +1,4 @@
-export type ProjectFramework = 'nextjs' | 'remix' | 'astro' | 'node' | 'unknown';
+export type ProjectFramework = 'nextjs' | 'remix' | 'astro' | 'static' | 'node' | 'unknown';
 
 export type DeployArtifactKind = 'ssr-node' | 'ssr-edge' | 'static' | 'docker';
 

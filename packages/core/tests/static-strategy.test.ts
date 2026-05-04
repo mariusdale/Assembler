@@ -1,0 +1,58 @@
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+import { createRunPlanFromProjectScan, scanProject } from '../src/index.js';
+
+describe('static site strategy', () => {
+  it('detects no-build index.html projects and plans a static deploy', async () => {
+    const projectDirectory = await mkdtemp(join(tmpdir(), 'assembler-static-'));
+    await writeFile(join(projectDirectory, 'index.html'), '<h1>Hello static</h1>');
+
+    const scan = await scanProject(projectDirectory);
+    const plan = createRunPlanFromProjectScan(scan);
+
+    expect(scan.name).toBe(projectDirectory.split('/').at(-1));
+    expect(scan.framework).toBe('static');
+    expect(plan.tasks.map((task) => task.id)).toContain('vercel-deploy-preview');
+    expect(plan.tasks.find((task) => task.id === 'vercel-create-project')?.params).toMatchObject({
+      framework: 'static',
+      outputDirectory: '.',
+    });
+  });
+
+  it('detects package-based static build output directories', async () => {
+    const projectDirectory = await mkdtemp(join(tmpdir(), 'assembler-static-build-'));
+    await mkdir(join(projectDirectory, 'build'), { recursive: true });
+    await writeFile(
+      join(projectDirectory, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'docs-site',
+          scripts: {
+            build: 'vite build --outDir build',
+          },
+          devDependencies: {
+            vite: '^6.0.0',
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFile(join(projectDirectory, 'build', 'index.html'), '<h1>Built docs</h1>');
+
+    const scan = await scanProject(projectDirectory);
+    const plan = createRunPlanFromProjectScan(scan);
+
+    expect(scan.name).toBe('docs-site');
+    expect(scan.framework).toBe('static');
+    expect(plan.tasks.find((task) => task.id === 'vercel-create-project')?.params).toMatchObject({
+      buildCommand: 'vite build --outDir build',
+      framework: 'static',
+      outputDirectory: 'build',
+    });
+  });
+});
