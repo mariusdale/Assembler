@@ -283,6 +283,38 @@ export function createProgram(): Command {
     });
 
   program
+    .command('init')
+    .description('Create an assembler.config.json for the current project.')
+    .action(async () => {
+      try {
+        const result = await getApp().initConfig();
+        console.log(chalk.green('Created ') + result.filePath);
+        console.log(JSON.stringify(result.config, null, 2));
+      } catch (error) {
+        printError(error);
+        process.exitCode = 1;
+      }
+    });
+
+  const config = program
+    .command('config')
+    .description('Inspect project configuration.');
+
+  config
+    .command('show')
+    .description('Show the normalized Assembler project config.')
+    .action(async () => {
+      try {
+        const result = await getApp().showConfig();
+        console.log(chalk.dim(result.filePath));
+        console.log(JSON.stringify(result.config, null, 2));
+      } catch (error) {
+        printError(error);
+        process.exitCode = 1;
+      }
+    });
+
+  program
     .command('plan')
     .description('Scan the project and show the execution plan without running it.')
     .option('--target <target>', 'Preferred deployment target or provider, e.g. vercel.')

@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import {
   createRunPlanFromProjectScan,
   createExecutor,
+  loadProjectConfig,
   scanProject,
 } from '@assembler/core';
 import { createProviderRegistry, NeonClient, VercelClient } from '@assembler/providers';
@@ -51,6 +52,8 @@ export interface CliApp {
   preview(branchName?: string): Promise<PreviewResult>;
   previewTeardown(branchName?: string): Promise<PreviewTeardownResult>;
   domainAdd(domain: string): Promise<DomainAddResult>;
+  initConfig(): Promise<ConfigInitResult>;
+  showConfig(): Promise<ConfigShowResult>;
   addCredential(provider: string, entries: string[]): Promise<void>;
   listCredentials(): Promise<string[]>;
   discover(provider: string): Promise<DiscoveryResult>;
@@ -60,6 +63,16 @@ export interface CliApp {
 export interface CreatePlanOptions {
   useExistingRepo?: boolean;
   deploymentTargetPreference?: string;
+}
+
+export interface ConfigInitResult {
+  filePath: string;
+  config: Record<string, unknown>;
+}
+
+export interface ConfigShowResult {
+  filePath: string;
+  config: Record<string, unknown>;
 }
 
 export interface PreviewResult {
@@ -524,6 +537,34 @@ export function createCliApp(cwd = process.cwd()): CliApp {
         verified: verifyTask?.outputs.verified === true,
       };
     },
+    initConfig: async (): Promise<ConfigInitResult> => {
+      const filePath = resolve(cwd, 'assembler.config.json');
+      if (existsSync(filePath)) {
+        throw new Error('assembler.config.json already exists.');
+      }
+
+      const projectScan = await scanProject(cwd);
+      const config = createInitialProjectConfig(projectScan);
+      writeFileSync(filePath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+
+      return {
+        filePath,
+        config,
+      };
+    },
+    showConfig: async (): Promise<ConfigShowResult> => {
+      const loaded = await loadProjectConfig(cwd);
+      if (!loaded) {
+        throw new Error(
+          'No assembler.config.json, assembler.config.ts, assembler.config.js, assembler.config.mjs, or assembler.config.cjs found.',
+        );
+      }
+
+      return {
+        filePath: loaded.path,
+        config: loaded.config as Record<string, unknown>,
+      };
+    },
     addCredential: (provider: string, entries: string[]): Promise<void> => {
       const parsed = parseCredentialInput(entries);
       stateStore.putCredentialRecord({
@@ -584,6 +625,56 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       };
     },
   };
+}
+
+function createInitialProjectConfig(projectScan: ProjectScan): Record<string, unknown> {
+  const config: Record<string, unknown> = {
+    $schema: 'https://assembler.dev/schemas/assembler.config.schema.json',
+  };
+
+  if (projectScan.framework !== 'unknown') {
+    config.framework = projectScan.framework;
+  }
+
+  config.target = 'vercel';
+
+  const buildCommand = getBuildCommand(projectScan.packageJson);
+  if (buildCommand) {
+    config.build = {
+      command: buildCommand,
+    };
+  }
+
+  if (projectScan.requiredEnvVars.length > 0) {
+    config.env = Object.fromEntries(
+      projectScan.requiredEnvVars.map((envVar) => [
+        envVar.name,
+        {
+          ...(envVar.provider ? { provider: envVar.provider } : {}),
+          required: true,
+          autoProvision: envVar.isAutoProvisionable,
+        },
+      ]),
+    );
+  }
+
+  if (projectScan.detectedProviders.length > 0) {
+    config.providers = Object.fromEntries(
+      projectScan.detectedProviders.map((provider) => [provider.provider, true]),
+    );
+  }
+
+  return config;
+}
+
+function getBuildCommand(packageJson: Record<string, unknown>): string | undefined {
+  const scripts = packageJson.scripts;
+  if (typeof scripts !== 'object' || scripts === null || Array.isArray(scripts)) {
+    return undefined;
+  }
+
+  const build = (scripts as Record<string, unknown>).build;
+  return typeof build === 'string' && build.trim() !== '' ? build : undefined;
 }
 
 function findLatestRunId(stateStore: LocalStateStore): string | undefined {

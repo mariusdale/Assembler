@@ -11,6 +11,8 @@ describe('assembler CLI', () => {
     expect(help).toContain('doctor');
     expect(help).toContain('status');
     expect(help).toContain('creds');
+    expect(help).toContain('init');
+    expect(help).toContain('config');
     expect(help).toContain('Legacy shortcut for guided credential setup.');
     expect(help).not.toContain('Parse a prompt into a typed application plan.');
     expect(help).not.toContain('Execute an approved run plan or the latest run.');
@@ -27,5 +29,11 @@ describe('assembler CLI', () => {
 
     expect(planHelp).toContain('--target <target>');
     expect(launchHelp).toContain('--target <target>');
+  });
+
+  it('exposes config show as a project configuration command', () => {
+    const config = createProgram().commands.find((command) => command.name() === 'config');
+
+    expect(config?.commands.map((command) => command.name())).toContain('show');
   });
 });

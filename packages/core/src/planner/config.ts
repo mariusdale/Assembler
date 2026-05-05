@@ -7,6 +7,7 @@ import type { ProjectConfig, ProjectFramework, LoadedProjectConfig } from '@asse
 
 export const PROJECT_CONFIG_FILENAMES = [
   'assembler.config.json',
+  'assembler.config.ts',
   'assembler.config.js',
   'assembler.config.mjs',
   'assembler.config.cjs',
@@ -73,8 +74,27 @@ async function readProjectConfig(filepath: string): Promise<unknown> {
     return unwrapModuleExport(require(filepath) as unknown);
   }
 
+  if (extension === '.ts') {
+    return readTypeScriptProjectConfig(filepath);
+  }
+
   const module = await import(pathToFileURL(filepath).href);
   return unwrapModuleExport(module as Record<string, unknown>);
+}
+
+async function readTypeScriptProjectConfig(filepath: string): Promise<unknown> {
+  const source = await readFile(filepath, 'utf8');
+  const transformed = source
+    .replace(/^\s*import\s+type\s+[^;]+;\s*$/gm, '')
+    .replace(/^\s*import\s+\{\s*defineConfig\s*\}\s+from\s+['"][^'"]+['"];\s*$/gm, '')
+    .replace(/\bexport\s+default\s+defineConfig\s*\(/, 'module.exports = defineConfig(')
+    .replace(/\bexport\s+default\s+/, 'module.exports = ')
+    .replace(/\s+satisfies\s+[A-Za-z0-9_.$<>,\s]+(?=;|\)|\n|$)/g, '')
+    .replace(/\s+as\s+const(?=;|\)|\n|$)/g, '');
+  const module = { exports: undefined as unknown };
+  const load = new Function('module', 'exports', 'defineConfig', `${transformed}\nreturn module.exports;`);
+
+  return load(module, module.exports, defineConfig) as unknown;
 }
 
 function unwrapModuleExport(value: unknown): unknown {

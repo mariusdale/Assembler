@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -69,6 +69,48 @@ describe('cli app', () => {
 
     expect(plan.tasks.find((task) => task.id === 'vercel-create-project')?.params).toMatchObject({
       framework: 'nextjs',
+    });
+  });
+
+  it('creates and reads project config files', async () => {
+    const cwd = createTempDirectory();
+    const app = createCliApp(cwd);
+    writeFileSync(
+      join(cwd, 'package.json'),
+      JSON.stringify({
+        name: 'configured-cli-app',
+        scripts: {
+          build: 'vite build',
+        },
+        dependencies: {
+          astro: '^5.0.0',
+        },
+      }),
+    );
+    writeFileSync(join(cwd, '.env.example'), 'DATABASE_URL=\n');
+
+    const initResult = await app.initConfig();
+    const configFile = JSON.parse(readFileSync(initResult.filePath, 'utf8')) as Record<string, unknown>;
+    const showResult = await app.showConfig();
+
+    expect(existsSync(join(cwd, 'assembler.config.json'))).toBe(true);
+    expect(configFile).toMatchObject({
+      framework: 'astro',
+      target: 'vercel',
+      build: {
+        command: 'vite build',
+      },
+      env: {
+        DATABASE_URL: {
+          provider: 'neon',
+          required: true,
+          autoProvision: true,
+        },
+      },
+    });
+    expect(showResult.config).toMatchObject({
+      framework: 'astro',
+      target: 'vercel',
     });
   });
 });

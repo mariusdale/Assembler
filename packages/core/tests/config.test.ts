@@ -90,6 +90,28 @@ describe('project config loader', () => {
     });
   });
 
+  it('loads TypeScript config exported through defineConfig', async () => {
+    const projectDirectory = await mkdtemp(join(tmpdir(), 'assembler-config-'));
+    await writeFile(
+      join(projectDirectory, 'assembler.config.ts'),
+      [
+        "import { defineConfig } from '@assembler/core';",
+        '',
+        'export default defineConfig({',
+        "  framework: 'nextjs',",
+        "  target: 'vercel',",
+        '} as const);',
+      ].join('\n'),
+    );
+
+    const loaded = await loadProjectConfig(projectDirectory);
+
+    expect(loaded?.config).toEqual({
+      framework: 'nextjs',
+      target: 'vercel',
+    });
+  });
+
   it('returns undefined when no config exists', async () => {
     const projectDirectory = await mkdtemp(join(tmpdir(), 'assembler-config-'));
 
