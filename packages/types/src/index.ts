@@ -2,6 +2,35 @@ export type ProjectFramework = 'nextjs' | 'remix' | 'astro' | 'static' | 'node' 
 
 export type DeployArtifactKind = 'ssr-node' | 'ssr-edge' | 'static' | 'docker';
 
+export interface ProjectConfigBuild {
+  command?: string;
+  outputDirectory?: string;
+  nodeVersion?: string;
+}
+
+export interface ProjectConfigEnvVar {
+  provider?: string;
+  required?: boolean;
+  autoProvision?: boolean;
+}
+
+export interface ProjectConfigProvider {
+  enabled?: boolean;
+}
+
+export interface ProjectConfig {
+  framework?: ProjectFramework;
+  target?: string;
+  build?: ProjectConfigBuild;
+  env?: Record<string, ProjectConfigEnvVar>;
+  providers?: Record<string, boolean | ProjectConfigProvider>;
+}
+
+export interface LoadedProjectConfig {
+  path: string;
+  config: ProjectConfig;
+}
+
 export interface DetectedProvider {
   provider: string;
   confidence: 'high' | 'medium' | 'low';
@@ -35,6 +64,7 @@ export interface ProjectScan {
   requiredEnvVars: EnvVarRequirement[];
   packageJson: Record<string, unknown>;
   lockfileCheck: LockfileCheck;
+  config?: LoadedProjectConfig;
 }
 
 export interface DeployIntent {

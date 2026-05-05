@@ -1,5 +1,6 @@
 export * from './project-scanner.js';
 export * from './rule-engine.js';
+export * from './config.js';
 export * from './deployment-target-registry.js';
 export * from './framework-strategy.js';
 export * from './strategies/astro.js';
