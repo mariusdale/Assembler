@@ -35,6 +35,7 @@ Run `assembler init` to create a detected `assembler.config.json`, then edit it 
 ```
 
 Use `assembler config show` to print the normalized config Assembler will use.
+Use `assembler doctor` to catch invalid config and unsupported framework or target combinations before launching.
 
 TypeScript config supports the common `export default defineConfig({ ... })` shape. JavaScript config files can export the object directly.
 

@@ -676,6 +676,18 @@ export function createProgram(): Command {
       console.log();
       console.log(`  Node.js: ${chalk.green(result.nodeVersion)}`);
       console.log();
+      console.log(chalk.bold('Project Configuration:'));
+      if (!result.configCheck.filePath) {
+        console.log(`  ${chalk.dim('○')} ${chalk.dim('No project config found')}`);
+      } else if (result.configCheck.valid) {
+        console.log(`  ${chalk.green('✓')} ${result.configCheck.filePath}`);
+      } else {
+        console.log(`  ${chalk.red('✗')} ${result.configCheck.filePath}`);
+        for (const issue of result.configCheck.issues) {
+          console.log(`    ${chalk.red(issue)}`);
+        }
+      }
+      console.log();
       console.log(chalk.bold('Provider Credentials:'));
 
       for (const check of result.checks) {

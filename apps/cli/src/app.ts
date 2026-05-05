@@ -30,8 +30,15 @@ export interface DoctorCheckResult {
 
 export interface DoctorResult {
   nodeVersion: string;
+  configCheck: DoctorConfigCheckResult;
   checks: DoctorCheckResult[];
   allHealthy: boolean;
+}
+
+export interface DoctorConfigCheckResult {
+  valid: boolean;
+  filePath?: string;
+  issues: string[];
 }
 
 export interface CliApp {
@@ -586,6 +593,7 @@ export function createCliApp(cwd = process.cwd()): CliApp {
     },
     doctor: async (): Promise<DoctorResult> => {
       const allProviders = ['github', 'neon', 'vercel', 'clerk', 'stripe', 'sentry', 'resend', 'cloudflare'];
+      const configCheck = await runProjectConfigDoctor(cwd);
       const checks: DoctorCheckResult[] = [];
 
       for (const provider of allProviders) {
@@ -618,12 +626,46 @@ export function createCliApp(cwd = process.cwd()): CliApp {
 
       return {
         nodeVersion: process.version,
+        configCheck,
         checks,
-        allHealthy: checks
+        allHealthy: configCheck.valid && checks
           .filter((c) => c.hasCredentials)
           .every((c) => c.preflightResult?.valid !== false),
       };
     },
+  };
+}
+
+async function runProjectConfigDoctor(cwd: string): Promise<DoctorConfigCheckResult> {
+  let loaded: Awaited<ReturnType<typeof loadProjectConfig>>;
+  try {
+    loaded = await loadProjectConfig(cwd);
+  } catch (error) {
+    return {
+      valid: false,
+      issues: [error instanceof Error ? error.message : String(error)],
+    };
+  }
+
+  if (!loaded) {
+    return {
+      valid: true,
+      issues: [],
+    };
+  }
+
+  const issues: string[] = [];
+  try {
+    const projectScan = await scanProject(cwd);
+    createRunPlanFromProjectScan(projectScan);
+  } catch (error) {
+    issues.push(error instanceof Error ? error.message : String(error));
+  }
+
+  return {
+    valid: issues.length === 0,
+    filePath: loaded.path,
+    issues,
   };
 }
 

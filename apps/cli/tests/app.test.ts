@@ -113,6 +113,25 @@ describe('cli app', () => {
       target: 'vercel',
     });
   });
+
+  it('reports project config planning issues in doctor', async () => {
+    const cwd = createTempDirectory();
+    const app = createCliApp(cwd);
+    writeFileSync(join(cwd, 'index.html'), '<h1>Static</h1>');
+    writeFileSync(
+      join(cwd, 'assembler.config.json'),
+      JSON.stringify({
+        framework: 'static',
+        target: 'docker',
+      }),
+    );
+
+    const result = await app.doctor();
+
+    expect(result.configCheck.valid).toBe(false);
+    expect(result.configCheck.issues.join('\n')).toContain('No deployment target supports');
+    expect(result.allHealthy).toBe(false);
+  });
 });
 
 function createTempDirectory(): string {
