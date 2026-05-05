@@ -28,5 +28,4 @@ The token must be able to manage Pages projects for that account. Existing Cloud
 ## Planned Follow-Up
 
 - Add `assembler doctor` checks for Pages-specific token scopes and account id presence.
-- Add smoke-test documentation for a throwaway static project.
 - Add richer status output for Cloudflare Pages preview URLs.

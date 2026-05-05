@@ -103,8 +103,6 @@ M7 - Desktop Deployments Dashboard.
 
 ## Good First Issues
 
-- Write the JSON schema for `assembler.config.json`.
-- Add config consistency checks to `assembler doctor`.
+- Add smoke tests for `assembler init` and `assembler config show`.
 - Move CLI/TUI framework and provider labels into a shared labels module.
 - Add docs for the deployment target registry extension pattern.
-- Add smoke-test docs for `assembler plan --target cloudflare-pages`.

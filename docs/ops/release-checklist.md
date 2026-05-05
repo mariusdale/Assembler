@@ -8,7 +8,7 @@ Use this checklist before a beta tag, release tag, live demo, or onboarding wave
 - `pnpm typecheck`
 - `pnpm build`
 - `pnpm test`
-- packaged install smoke from the bundled CLI artifact
+- packaged install smoke from the bundled CLI artifact using [smoke tests](smoke-tests.md)
 - one manual live `assembler launch` rehearsal against real providers
 - one manual `assembler preview` rehearsal if previews will be shown
 

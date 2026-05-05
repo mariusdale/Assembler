@@ -13,6 +13,7 @@ This directory contains the active documentation for Assembler.
 - [Credential setup](credential-setup.md) lists provider token requirements.
 - [Public beta guide](product/public-beta.md) defines the supported product scope.
 - [Release checklist](ops/release-checklist.md) covers release verification.
+- [Smoke tests](ops/smoke-tests.md) lists manual CLI checks for release candidates and demos.
 - [Support runbook](ops/support-runbook.md) covers triage for failed launches.
 
 ## Repository Automation
