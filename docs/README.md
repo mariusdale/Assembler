@@ -6,6 +6,7 @@ This directory contains the active documentation for Assembler.
 
 - [Architecture](architecture.md) explains the package boundaries and launch flow.
 - [Astro framework support](frameworks/astro.md) documents the first non-Next.js strategy.
+- [Deployment target extensions](targets/deployment-targets.md) explains how framework strategies route deploy intents to targets.
 - [Cloudflare Pages target](targets/cloudflare-pages.md) documents explicit static/edge deploy target selection.
 - [Project configuration](configuration.md) explains `assembler.config.*` overrides and commands.
 - [Launch plan](launch-plan.md) tracks current implementation status and launch verification.
