@@ -171,15 +171,15 @@ function createTaskSeedsFromProjectScan(
   const deploymentTargets =
     options.deploymentTargetRegistry ?? createDefaultDeploymentTargetRegistry();
   const frameworkStrategy = frameworkRegistry.resolve(projectScan);
+  const deploymentTargetPreference =
+    options.deploymentTargetPreference ?? projectScan.config?.config.target;
   seeds.push(
     ...(frameworkStrategy?.plan({
       projectScan,
       appSlug,
       repoTaskId,
       deploymentTargets,
-      ...(options.deploymentTargetPreference
-        ? { deploymentTargetPreference: options.deploymentTargetPreference }
-        : {}),
+      ...(deploymentTargetPreference ? { deploymentTargetPreference } : {}),
       requiresProvider(name) {
         return requiresProvider(projectScan, name);
       },

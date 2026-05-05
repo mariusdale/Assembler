@@ -1,6 +1,6 @@
 # Contributing to Assembler
 
-Thanks for helping improve Assembler. The public beta is intentionally narrow today: the stable path provisions infrastructure and deploys existing Next.js applications. The roadmap broadens that through framework strategies, deployment targets, and more providers. Assembler does not generate application code, create business logic, or maintain a hosted service.
+Thanks for helping improve Assembler. The public beta is intentionally narrow today: the stable path provisions infrastructure and deploys existing Next.js, Astro, and static site projects. Vercel is the default deployment target, and Cloudflare Pages is available for explicit static/edge target selection. The roadmap broadens that through more framework strategies, deployment targets, and providers. Assembler does not generate application code, create business logic, or maintain a hosted service.
 
 ## Getting Started
 
@@ -64,7 +64,7 @@ Run all four before opening a pull request. The test suite uses Vitest.
 2. Implement credential validation in `preflight`.
 3. Keep API failures wrapped with actionable remediation text.
 4. Register scan detection in `packages/core/src/planner/project-scanner.ts` only when the provider has a real execution path.
-5. Add or update task planning in `packages/core/src/planner/rule-engine.ts`. Once the framework strategy registry lands, add framework-specific planning under `packages/core/src/planner/strategies/` instead.
+5. Add shared provider setup in `packages/core/src/planner/rule-engine.ts` or framework-specific planning under `packages/core/src/planner/strategies/`.
 6. Add provider tests under `packages/providers/tests/`.
 7. Add or update Vercel env sync only for outputs that the provider actually produces.
 

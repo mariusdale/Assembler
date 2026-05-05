@@ -16,7 +16,15 @@ import { CloudflareClient } from './client.js';
 
 export const cloudflareProviderPack: ProviderPack = {
   name: 'cloudflare',
-  actions: ['lookup-zone', 'create-dns-record', 'verify-dns'],
+  actions: [
+    'lookup-zone',
+    'create-dns-record',
+    'verify-dns',
+    'create-pages-project',
+    'trigger-pages-deployment',
+    'wait-for-pages-ready',
+    'pages-health-check',
+  ],
   preflight: async (creds: Credentials): Promise<PreflightResult> => {
     const errors: PreflightResult['errors'] = [];
 
@@ -198,7 +206,106 @@ export const cloudflareProviderPack: ProviderPack = {
           outputs: { verified, recordCount: records.length },
           message: verified
             ? `DNS records for "${domain}" are configured.`
-            : `No DNS records found for "${domain}".`,
+          : `No DNS records found for "${domain}".`,
+        };
+      }
+      case 'create-pages-project': {
+        const accountId = resolveAccountId(await ctx.getCredential('cloudflare'));
+        const projectName = asOptionalString(task.params.name) ?? toSlug(getProjectName(ctx));
+        const owner = asString(resolveRepositoryOutput(ctx, 'owner'), 'github repository owner');
+        const repoName = asString(
+          resolveRepositoryOutput(ctx, 'repoName'),
+          'github repository name',
+        );
+        const productionBranch = asString(
+          resolveRepositoryOutput(ctx, 'defaultBranch'),
+          'github repository default branch',
+        );
+        const buildCommand = asOptionalString(task.params.buildCommand);
+        const outputDirectory = asOptionalString(task.params.outputDirectory);
+
+        const project = await client.createPagesProject(accountId, {
+          name: projectName,
+          owner,
+          repoName,
+          productionBranch,
+          ...(buildCommand ? { buildCommand } : {}),
+          ...(outputDirectory ? { outputDirectory } : {}),
+        });
+
+        return {
+          success: true,
+          outputs: {
+            accountId,
+            projectId: project.id,
+            projectName: project.name,
+            ...(project.subdomain ? { projectUrl: `https://${project.subdomain}` } : {}),
+          },
+          message: `Cloudflare Pages project "${project.name}" is configured.`,
+        };
+      }
+      case 'trigger-pages-deployment': {
+        const accountId = asString(
+          task.params.accountId ?? ctx.getOutput('cloudflare-pages-create-project', 'accountId'),
+          'cloudflare account id',
+        );
+        const projectName = asString(
+          task.params.name ?? ctx.getOutput('cloudflare-pages-create-project', 'projectName'),
+          'cloudflare pages project name',
+        );
+        const deployment = await client.createPagesDeployment(accountId, projectName);
+
+        return {
+          success: true,
+          outputs: {
+            accountId,
+            projectName,
+            deploymentId: deployment.id,
+            ...(deployment.url ? { previewUrl: deployment.url } : {}),
+          },
+          message: `Triggered Cloudflare Pages deployment for "${projectName}".`,
+        };
+      }
+      case 'wait-for-pages-ready': {
+        const accountId = asString(
+          task.params.accountId ?? ctx.getOutput('cloudflare-pages-trigger-deployment', 'accountId'),
+          'cloudflare account id',
+        );
+        const projectName = asString(
+          task.params.name ?? ctx.getOutput('cloudflare-pages-trigger-deployment', 'projectName'),
+          'cloudflare pages project name',
+        );
+        const deploymentId = asString(
+          task.params.deploymentId ??
+            ctx.getOutput('cloudflare-pages-trigger-deployment', 'deploymentId'),
+          'cloudflare pages deployment id',
+        );
+        const deployment = await client.getPagesDeployment(accountId, projectName, deploymentId);
+        const status = deployment.latest_stage?.status ?? 'unknown';
+
+        if (status === 'failure' || status === 'canceled') {
+          throw new Error(`Cloudflare Pages deployment ${deploymentId} ended with status ${status}.`);
+        }
+
+        return {
+          success: true,
+          outputs: {
+            status,
+            ...(deployment.url ? { previewUrl: deployment.url } : {}),
+          },
+        };
+      }
+      case 'pages-health-check': {
+        const previewUrl = asOptionalString(
+          task.params.previewUrl ?? ctx.getOutput('cloudflare-pages-wait-for-ready', 'previewUrl'),
+        );
+
+        return {
+          success: true,
+          outputs: {
+            ...(previewUrl ? { previewUrl } : {}),
+          },
+          ...(previewUrl ? { message: `Cloudflare Pages deployment is available at ${previewUrl}.` } : {}),
         };
       }
       default:
@@ -210,6 +317,24 @@ export const cloudflareProviderPack: ProviderPack = {
       success: true,
     }),
   rollback: async (task: Task, ctx: ExecutionContext): Promise<RollbackResult> => {
+    if (task.action === 'create-pages-project') {
+      const accountId = asOptionalString(task.outputs.accountId);
+      const projectName = asOptionalString(task.outputs.projectName);
+
+      if (accountId && projectName) {
+        const client = new CloudflareClient(await ctx.getCredential('cloudflare'));
+        try {
+          await client.deletePagesProject(accountId, projectName);
+        } catch (error) {
+          if (!(error instanceof HttpError) || error.status !== 404) {
+            throw error;
+          }
+        }
+      }
+
+      return { success: true };
+    }
+
     if (task.action !== 'create-dns-record') {
       return { success: true };
     }
@@ -250,6 +375,36 @@ function asString(value: unknown, fieldName: string): string {
 
 function asOptionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value : undefined;
+}
+
+function resolveAccountId(creds: Credentials): string {
+  const accountId = asOptionalString(creds.values.accountId) ?? asOptionalString(creds.values.account_id);
+  if (!accountId) {
+    throw new Error(
+      'Cloudflare Pages requires an account id. Add it with "assembler creds add cloudflare token=<api-token> accountId=<account-id>".',
+    );
+  }
+
+  return accountId;
+}
+
+function resolveRepositoryOutput(
+  ctx: ExecutionContext,
+  key: 'owner' | 'repoName' | 'defaultBranch',
+): unknown {
+  return ctx.getOutput('github-use-existing-repo', key) ?? ctx.getOutput('github-create-repo', key);
+}
+
+function getProjectName(ctx: ExecutionContext): string {
+  return ctx.projectScan?.name ?? 'assembler-app';
+}
+
+function toSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 63) || 'assembler-app';
 }
 
 function extractRootDomain(domain: string): string {

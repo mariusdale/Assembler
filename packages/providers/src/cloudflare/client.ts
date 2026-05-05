@@ -17,6 +17,21 @@ export interface CloudflareDnsRecord {
   ttl: number;
 }
 
+export interface CloudflarePagesProject {
+  id: string;
+  name: string;
+  subdomain?: string;
+  domains?: string[];
+}
+
+export interface CloudflarePagesDeployment {
+  id: string;
+  url?: string;
+  latest_stage?: {
+    status?: string;
+  };
+}
+
 interface CloudflareApiResponse<T> {
   success: boolean;
   errors: Array<{ code: number; message: string }>;
@@ -85,6 +100,72 @@ export class CloudflareClient {
   async deleteDnsRecord(zoneId: string, recordId: string): Promise<void> {
     await this.cfRequest<{ id: string }>(
       `/zones/${zoneId}/dns_records/${recordId}`,
+      { method: 'DELETE' },
+    );
+  }
+
+  createPagesProject(
+    accountId: string,
+    input: {
+      name: string;
+      productionBranch: string;
+      owner: string;
+      repoName: string;
+      buildCommand?: string;
+      outputDirectory?: string;
+    },
+  ): Promise<CloudflarePagesProject> {
+    return this.cfRequest<CloudflarePagesProject>(
+      `/accounts/${accountId}/pages/projects`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          name: input.name,
+          production_branch: input.productionBranch,
+          build_config: {
+            build_command: input.buildCommand ?? '',
+            destination_dir: input.outputDirectory ?? '',
+            root_dir: '',
+          },
+          source: {
+            type: 'github',
+            config: {
+              owner: input.owner,
+              repo_name: input.repoName,
+              production_branch: input.productionBranch,
+              deployments_enabled: true,
+              pr_comments_enabled: true,
+            },
+          },
+        }),
+      },
+    );
+  }
+
+  createPagesDeployment(
+    accountId: string,
+    projectName: string,
+  ): Promise<CloudflarePagesDeployment> {
+    return this.cfRequest<CloudflarePagesDeployment>(
+      `/accounts/${accountId}/pages/projects/${projectName}/deployments`,
+      { method: 'POST' },
+    );
+  }
+
+  getPagesDeployment(
+    accountId: string,
+    projectName: string,
+    deploymentId: string,
+  ): Promise<CloudflarePagesDeployment> {
+    return this.cfRequest<CloudflarePagesDeployment>(
+      `/accounts/${accountId}/pages/projects/${projectName}/deployments/${deploymentId}`,
+      { method: 'GET' },
+    );
+  }
+
+  async deletePagesProject(accountId: string, projectName: string): Promise<void> {
+    await this.cfRequest<{ id: string }>(
+      `/accounts/${accountId}/pages/projects/${projectName}`,
       { method: 'DELETE' },
     );
   }

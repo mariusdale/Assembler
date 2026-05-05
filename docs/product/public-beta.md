@@ -2,10 +2,11 @@
 
 ## Product Promise
 
-Assembler is a TUI-first launcher for **existing Next.js applications**. The supported public beta path is intentionally narrow so the launch experience stays reliable:
+Assembler is a TUI-first launcher for **existing Next.js, Astro, and static site projects**. The supported public beta path is intentionally narrow so the launch experience stays reliable:
 
-- existing Next.js project directory
-- GitHub and Vercel required
+- existing Next.js, Astro, or static project directory
+- GitHub and Vercel required for the default launch path
+- Cloudflare Pages available for static/edge deploy intents with `--target cloudflare-pages`
 - Neon as the default database path when `DATABASE_URL` is detected
 - Clerk, Stripe, Sentry, and Resend as optional detected integrations
 - no web dashboard in this milestone
@@ -16,7 +17,7 @@ Assembler is a TUI-first launcher for **existing Next.js applications**. The sup
 - scans the current project to confirm framework, lockfile health, and required providers
 - creates or reuses the GitHub repository
 - provisions Neon when the project indicates a database requirement
-- links and deploys the project on Vercel
+- links and deploys the project on Vercel, or Cloudflare Pages when explicitly selected
 - syncs detected provider credentials into the deployment environment
 - verifies deployment health after Vercel reports readiness
 - keeps launch, status, preview, and recovery workflows inside the terminal UI
@@ -26,7 +27,7 @@ Assembler is a TUI-first launcher for **existing Next.js applications**. The sup
 - provider APIs can still introduce transient delays or retries
 - preview deployments may return `401` when Vercel Deployment Protection stays enabled
 - schema migrations remain a manual app-level step after launch
-- the beta assumes a relatively standard Next.js build and deployment setup
+- the beta assumes a relatively standard Next.js, Astro, or static build and deployment setup
 
 ## Support Expectations
 

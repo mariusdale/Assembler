@@ -6,7 +6,9 @@ import type {
 } from '@assembler/types';
 
 import type { PlannerTaskSeed } from './types.js';
+import { astroStrategy } from './strategies/astro.js';
 import { nextjsStrategy } from './strategies/nextjs.js';
+import { staticStrategy } from './strategies/static.js';
 
 export interface FrameworkStrategyContext extends DeploymentTargetPlanContext {
   deploymentTargets: DeploymentTargetRegistry;
@@ -40,5 +42,7 @@ export function createFrameworkRegistry(): FrameworkRegistry {
 export function createDefaultFrameworkRegistry(): FrameworkRegistry {
   const registry = createFrameworkRegistry();
   registry.register(nextjsStrategy);
+  registry.register(astroStrategy);
+  registry.register(staticStrategy);
   return registry;
 }

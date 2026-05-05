@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import {
   createRunPlanFromProjectScan,
   createExecutor,
+  loadProjectConfig,
   scanProject,
 } from '@assembler/core';
 import { createProviderRegistry, NeonClient, VercelClient } from '@assembler/providers';
@@ -29,16 +30,23 @@ export interface DoctorCheckResult {
 
 export interface DoctorResult {
   nodeVersion: string;
+  configCheck: DoctorConfigCheckResult;
   checks: DoctorCheckResult[];
   allHealthy: boolean;
 }
 
+export interface DoctorConfigCheckResult {
+  valid: boolean;
+  filePath?: string;
+  issues: string[];
+}
+
 export interface CliApp {
   scan(): Promise<ProjectScan>;
-  createPlan(projectScan: ProjectScan, options?: { useExistingRepo?: boolean }): RunPlan;
+  createPlan(projectScan: ProjectScan, options?: CreatePlanOptions): RunPlan;
   preflight(runPlan: RunPlan): Promise<PreflightCheckResults>;
   executePlan(runPlan: RunPlan): Promise<RunPlan>;
-  launch(): Promise<LaunchResult>;
+  launch(options?: CreatePlanOptions): Promise<LaunchResult>;
   execute(runId?: string): Promise<RunPlan>;
   status(runId?: string): Promise<RunPlan>;
   listRuns(): Promise<RunPlan[]>;
@@ -51,10 +59,27 @@ export interface CliApp {
   preview(branchName?: string): Promise<PreviewResult>;
   previewTeardown(branchName?: string): Promise<PreviewTeardownResult>;
   domainAdd(domain: string): Promise<DomainAddResult>;
+  initConfig(): Promise<ConfigInitResult>;
+  showConfig(): Promise<ConfigShowResult>;
   addCredential(provider: string, entries: string[]): Promise<void>;
   listCredentials(): Promise<string[]>;
   discover(provider: string): Promise<DiscoveryResult>;
   doctor(): Promise<DoctorResult>;
+}
+
+export interface CreatePlanOptions {
+  useExistingRepo?: boolean;
+  deploymentTargetPreference?: string;
+}
+
+export interface ConfigInitResult {
+  filePath: string;
+  config: Record<string, unknown>;
+}
+
+export interface ConfigShowResult {
+  filePath: string;
+  config: Record<string, unknown>;
 }
 
 export interface PreviewResult {
@@ -111,7 +136,7 @@ export function createCliApp(cwd = process.cwd()): CliApp {
     scan: async (): Promise<ProjectScan> => {
       return scanProject(cwd);
     },
-    createPlan: (projectScan: ProjectScan, planOptions?: { useExistingRepo?: boolean }): RunPlan => {
+    createPlan: (projectScan: ProjectScan, planOptions?: CreatePlanOptions): RunPlan => {
       const runPlan: RunPlan = {
         ...createRunPlanFromProjectScan(projectScan, planOptions),
         status: 'approved',
@@ -126,10 +151,10 @@ export function createCliApp(cwd = process.cwd()): CliApp {
       const result = await executor.execute({ runPlan });
       return result.runPlan;
     },
-    launch: async (): Promise<LaunchResult> => {
+    launch: async (options?: CreatePlanOptions): Promise<LaunchResult> => {
       const projectScan = await scanProject(cwd);
       const runPlan: RunPlan = {
-        ...createRunPlanFromProjectScan(projectScan),
+        ...createRunPlanFromProjectScan(projectScan, options),
         status: 'approved',
       };
 
@@ -519,6 +544,34 @@ export function createCliApp(cwd = process.cwd()): CliApp {
         verified: verifyTask?.outputs.verified === true,
       };
     },
+    initConfig: async (): Promise<ConfigInitResult> => {
+      const filePath = resolve(cwd, 'assembler.config.json');
+      if (existsSync(filePath)) {
+        throw new Error('assembler.config.json already exists.');
+      }
+
+      const projectScan = await scanProject(cwd);
+      const config = createInitialProjectConfig(projectScan);
+      writeFileSync(filePath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+
+      return {
+        filePath,
+        config,
+      };
+    },
+    showConfig: async (): Promise<ConfigShowResult> => {
+      const loaded = await loadProjectConfig(cwd);
+      if (!loaded) {
+        throw new Error(
+          'No assembler.config.json, assembler.config.ts, assembler.config.js, assembler.config.mjs, or assembler.config.cjs found.',
+        );
+      }
+
+      return {
+        filePath: loaded.path,
+        config: loaded.config as Record<string, unknown>,
+      };
+    },
     addCredential: (provider: string, entries: string[]): Promise<void> => {
       const parsed = parseCredentialInput(entries);
       stateStore.putCredentialRecord({
@@ -540,6 +593,7 @@ export function createCliApp(cwd = process.cwd()): CliApp {
     },
     doctor: async (): Promise<DoctorResult> => {
       const allProviders = ['github', 'neon', 'vercel', 'clerk', 'stripe', 'sentry', 'resend', 'cloudflare'];
+      const configCheck = await runProjectConfigDoctor(cwd);
       const checks: DoctorCheckResult[] = [];
 
       for (const provider of allProviders) {
@@ -572,13 +626,97 @@ export function createCliApp(cwd = process.cwd()): CliApp {
 
       return {
         nodeVersion: process.version,
+        configCheck,
         checks,
-        allHealthy: checks
+        allHealthy: configCheck.valid && checks
           .filter((c) => c.hasCredentials)
           .every((c) => c.preflightResult?.valid !== false),
       };
     },
   };
+}
+
+async function runProjectConfigDoctor(cwd: string): Promise<DoctorConfigCheckResult> {
+  let loaded: Awaited<ReturnType<typeof loadProjectConfig>>;
+  try {
+    loaded = await loadProjectConfig(cwd);
+  } catch (error) {
+    return {
+      valid: false,
+      issues: [error instanceof Error ? error.message : String(error)],
+    };
+  }
+
+  if (!loaded) {
+    return {
+      valid: true,
+      issues: [],
+    };
+  }
+
+  const issues: string[] = [];
+  try {
+    const projectScan = await scanProject(cwd);
+    createRunPlanFromProjectScan(projectScan);
+  } catch (error) {
+    issues.push(error instanceof Error ? error.message : String(error));
+  }
+
+  return {
+    valid: issues.length === 0,
+    filePath: loaded.path,
+    issues,
+  };
+}
+
+function createInitialProjectConfig(projectScan: ProjectScan): Record<string, unknown> {
+  const config: Record<string, unknown> = {
+    $schema: 'https://assembler.dev/schemas/assembler.config.schema.json',
+  };
+
+  if (projectScan.framework !== 'unknown') {
+    config.framework = projectScan.framework;
+  }
+
+  config.target = 'vercel';
+
+  const buildCommand = getBuildCommand(projectScan.packageJson);
+  if (buildCommand) {
+    config.build = {
+      command: buildCommand,
+    };
+  }
+
+  if (projectScan.requiredEnvVars.length > 0) {
+    config.env = Object.fromEntries(
+      projectScan.requiredEnvVars.map((envVar) => [
+        envVar.name,
+        {
+          ...(envVar.provider ? { provider: envVar.provider } : {}),
+          required: true,
+          autoProvision: envVar.isAutoProvisionable,
+        },
+      ]),
+    );
+  }
+
+  if (projectScan.detectedProviders.length > 0) {
+    config.providers = Object.fromEntries(
+      projectScan.detectedProviders.map((provider) => [provider.provider, true]),
+    );
+  }
+
+  return config;
+}
+
+function getBuildCommand(packageJson: Record<string, unknown>): string | undefined {
+  const scripts = packageJson.scripts;
+  if (typeof scripts !== 'object' || scripts === null || Array.isArray(scripts)) {
+    return undefined;
+  }
+
+  const build = (scripts as Record<string, unknown>).build;
+  return typeof build === 'string' && build.trim() !== '' ? build : undefined;
 }
 
 function findLatestRunId(stateStore: LocalStateStore): string | undefined {

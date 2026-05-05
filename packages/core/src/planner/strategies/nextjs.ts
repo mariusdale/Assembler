@@ -8,10 +8,14 @@ export const nextjsStrategy: FrameworkStrategy = {
     return scan.framework === 'nextjs';
   },
   plan(ctx) {
+    const build = ctx.projectScan.config?.config.build;
     const intent: DeployIntent = {
       artifact: 'ssr-node',
       framework: ctx.projectScan.framework,
       envVarKeys: ctx.projectScan.requiredEnvVars.map((envVar) => envVar.name),
+      ...(build?.command ? { buildCommand: build.command } : {}),
+      ...(build?.outputDirectory ? { outputDirectory: build.outputDirectory } : {}),
+      ...(build?.nodeVersion ? { nodeVersion: build.nodeVersion } : {}),
     };
     const target = ctx.deploymentTargets.selectFor(intent, ctx.deploymentTargetPreference);
 

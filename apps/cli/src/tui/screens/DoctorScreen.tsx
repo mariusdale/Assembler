@@ -95,7 +95,11 @@ export function DoctorScreen({
     scan.lockfileCheck.lockfileExists &&
     scan.lockfileCheck.inSync &&
     hasBuildScript;
-  const overallHealthy = projectReady && providerIssues.length === 0 && missingRequiredProviders.length === 0;
+  const overallHealthy =
+    result.configCheck.valid &&
+    projectReady &&
+    providerIssues.length === 0 &&
+    missingRequiredProviders.length === 0;
 
   return (
     <Box flexDirection="column">
@@ -107,6 +111,27 @@ export function DoctorScreen({
         <CheckRow label="Lockfile" ok={scan.lockfileCheck.lockfileExists} detail={scan.lockfileCheck.lockfileExists ? 'Present' : 'Missing'} />
         <CheckRow label="Lockfile sync" ok={scan.lockfileCheck.inSync} detail={scan.lockfileCheck.inSync ? 'In sync' : 'Out of sync'} />
         <CheckRow label="Build script" ok={hasBuildScript} detail={hasBuildScript ? 'Configured' : 'Missing from package.json'} />
+      </Panel>
+
+      <Panel title="Project Configuration" borderColor={result.configCheck.valid ? 'cyan' : 'red'}>
+        {!result.configCheck.filePath ? (
+          <Text dimColor>○ No project config found</Text>
+        ) : result.configCheck.valid ? (
+          <Text>
+            <Text color="green">✓</Text> {result.configCheck.filePath}
+          </Text>
+        ) : (
+          <Box flexDirection="column">
+            <Text>
+              <Text color="red">✗</Text> {result.configCheck.filePath}
+            </Text>
+            {result.configCheck.issues.map((issue) => (
+              <Text key={issue} color="red">
+                {issue}
+              </Text>
+            ))}
+          </Box>
+        )}
       </Panel>
 
       <Panel title="Provider Readiness" borderColor={providerIssues.length === 0 ? 'cyan' : 'yellow'}>
@@ -151,6 +176,9 @@ export function DoctorScreen({
         </Text>
         {!projectReady ? (
           <Text dimColor>Resolve the project readiness checks above before starting a launch.</Text>
+        ) : null}
+        {!result.configCheck.valid ? (
+          <Text dimColor>Fix project configuration issues before launching.</Text>
         ) : null}
         {missingRequiredProviders.length > 0 ? (
           <Text dimColor>Connect GitHub and Vercel credentials in the Credentials screen before launching.</Text>

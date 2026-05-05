@@ -15,13 +15,13 @@ tests/fixtures/      Framework-scoped sample apps for integration tests
 docs/                Product, architecture, release, and support documentation
 ```
 
-The current public beta path is Next.js + Vercel. The roadmap expands this through framework strategies and deployment target adapters.
+The current public beta path is Next.js, Astro, or static sites deployed through Vercel. Cloudflare Pages is available when users explicitly select it for static/edge deploy intents. The roadmap expands this through more framework strategies, configuration, and operational surfaces.
 
 ## Core Abstractions
 
 - `ProviderPack` in `packages/types/src/index.ts`: provider lifecycle hooks for preflight, discover, plan, apply, verify, and rollback.
-- `FrameworkStrategy` planned in `packages/core/src/planner/framework-strategy.ts`: per-framework planning that replaces framework-specific branches in `rule-engine.ts`.
-- `DeploymentTarget` planned in `packages/types/src/index.ts`: per-target deployment planning so frameworks can deploy to Vercel, Cloudflare Pages, Netlify, Docker targets, and more.
+- `FrameworkStrategy` in `packages/core/src/planner/framework-strategy.ts`: per-framework planning that keeps framework-specific work out of `rule-engine.ts`.
+- `DeploymentTarget` in `packages/types/src/index.ts`: per-target deployment planning so frameworks can deploy to Vercel, Cloudflare Pages, Netlify, Docker targets, and more.
 
 ## Critical Files
 
@@ -53,8 +53,8 @@ Run the bundled local CLI with:
 ## Where To Add Things
 
 - New provider: add `packages/providers/src/<name>/`, register it in `packages/providers/src/index.ts`, and add provider tests under `packages/providers/tests/`.
-- New framework: add `packages/core/src/planner/strategies/<name>.ts` after the framework strategy registry lands, then register it in the default registry.
-- New deployment target: add an adapter under the owning provider package after the deployment target registry lands, then register it in the default target registry.
+- New framework: add `packages/core/src/planner/strategies/<name>.ts`, then register it in the default framework registry.
+- New deployment target: add an adapter under the owning provider package, then register it in the default target registry.
 - New fixture: add it under `tests/fixtures/<framework>/<sample-name>/`.
 
 ## Testing Conventions
@@ -66,7 +66,7 @@ For planner changes, add tests that assert task IDs, dependencies, required prov
 ## Do Not Do This
 
 - Do not add new `if (framework === 'x')` branches in `rule-engine.ts`; extend the framework strategy registry once M1 is in place.
-- Do not hardcode provider names inside framework strategies; route deploy choices through the deployment target registry once M2 is in place.
+- Do not hardcode deploy task sequences inside framework strategies; route deploy choices through the deployment target registry.
 - Do not write `.assembler/state.db` outside the executor or state-store APIs.
 - Do not add placeholder providers, examples, or docs for features that do not have an execution path.
 - Do not commit `.env`, `.env.local`, `.assembler/`, provider tokens, or live connection strings.

@@ -6,11 +6,14 @@ import { promisify } from 'node:util';
 import type {
   DetectedProvider,
   EnvVarRequirement,
+  LoadedProjectConfig,
   LockfileCheck,
   PackageManager,
   ProjectFramework,
   ProjectScan,
 } from '@assembler/types';
+
+import { loadProjectConfig } from './config.js';
 
 const execFile = promisify(execFileCallback);
 
@@ -22,12 +25,34 @@ const ENV_EXAMPLE_FILENAMES = [
 ] as const;
 
 const DATABASE_ENV_VARS = new Set(['DATABASE_URL', 'DIRECT_DATABASE_URL']);
+const CLERK_PACKAGES = [
+  '@clerk/nextjs',
+  '@clerk/astro',
+  '@clerk/clerk-react',
+  '@clerk/clerk-js',
+] as const;
+const STRIPE_WEBHOOK_PATHS = [
+  'app/api/webhooks/stripe/route.ts',
+  'app/api/webhooks/stripe/route.js',
+  'pages/api/webhooks/stripe.ts',
+  'pages/api/webhooks/stripe.js',
+  'src/pages/api/webhooks/stripe.ts',
+  'src/pages/api/webhooks/stripe.js',
+  'src/pages/api/stripe/webhook.ts',
+  'src/pages/api/stripe/webhook.js',
+] as const;
+
+const STATIC_OUTPUT_DIRECTORIES = ['dist', 'build', '_site', 'out'] as const;
 
 export async function scanProject(directory: string): Promise<ProjectScan> {
   const projectDirectory = resolve(directory);
-  const packageJson = await readPackageJson(projectDirectory);
+  const [packageJson, loadedConfig] = await Promise.all([
+    readPackageJson(projectDirectory),
+    loadProjectConfig(projectDirectory),
+  ]);
   const packageName = getPackageName(packageJson) ?? basename(projectDirectory);
-  const framework = detectFramework(packageJson);
+  const detectedFramework = await detectFramework(projectDirectory, packageJson);
+  const framework = loadedConfig?.config.framework ?? detectedFramework;
   const [gitRemoteUrl, requiredEnvVars, detectedProviders, lockfileCheck] = await Promise.all([
     getGitRemoteUrl(projectDirectory),
     collectEnvRequirements(projectDirectory),
@@ -36,6 +61,9 @@ export async function scanProject(directory: string): Promise<ProjectScan> {
   ]);
 
   mergeEnvVarProvidersIntoDetectedProviders(requiredEnvVars, detectedProviders);
+  if (loadedConfig) {
+    applyProjectConfigOverrides(requiredEnvVars, detectedProviders, loadedConfig);
+  }
 
   return {
     name: packageName,
@@ -47,12 +75,21 @@ export async function scanProject(directory: string): Promise<ProjectScan> {
     requiredEnvVars: requiredEnvVars.sort((left, right) => left.name.localeCompare(right.name)),
     packageJson,
     lockfileCheck,
+    ...(loadedConfig ? { config: loadedConfig } : {}),
   };
 }
 
 async function readPackageJson(directory: string): Promise<Record<string, unknown>> {
-  const raw = await readFile(join(directory, 'package.json'), 'utf8');
-  return JSON.parse(raw) as Record<string, unknown>;
+  try {
+    const raw = await readFile(join(directory, 'package.json'), 'utf8');
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch (error) {
+    if (isNodeError(error) && error.code === 'ENOENT' && (await maybeExists(directory, 'index.html'))) {
+      return {};
+    }
+
+    throw error;
+  }
 }
 
 function getPackageName(packageJson: Record<string, unknown>): string | undefined {
@@ -64,7 +101,10 @@ function sanitizeProjectName(value: string): string {
   return value.replace(/^@[^/]+\//, '').trim();
 }
 
-function detectFramework(packageJson: Record<string, unknown>): ProjectFramework {
+async function detectFramework(
+  directory: string,
+  packageJson: Record<string, unknown>,
+): Promise<ProjectFramework> {
   const dependencies = getDependencyMap(packageJson);
 
   if (dependencies.has('next')) {
@@ -76,11 +116,34 @@ function detectFramework(packageJson: Record<string, unknown>): ProjectFramework
   if (dependencies.has('astro')) {
     return 'astro';
   }
+  if (await hasStaticSiteEvidence(directory, packageJson)) {
+    return 'static';
+  }
   if (dependencies.size > 0) {
     return 'node';
   }
 
   return 'unknown';
+}
+
+async function hasStaticSiteEvidence(
+  directory: string,
+  packageJson: Record<string, unknown>,
+): Promise<boolean> {
+  if (await maybeExists(directory, 'index.html')) {
+    return true;
+  }
+
+  if (!hasBuildScript(packageJson)) {
+    return false;
+  }
+
+  return (
+    (await firstExistingPath(
+      directory,
+      STATIC_OUTPUT_DIRECTORIES.map((outputDirectory) => join(outputDirectory, 'index.html')),
+    )) !== undefined
+  );
 }
 
 async function getGitRemoteUrl(directory: string): Promise<string | undefined> {
@@ -158,8 +221,10 @@ async function detectProviders(
   const dependencies = getDependencyMap(packageJson);
   const packageEvidence = new Map<string, string[]>();
 
-  if (dependencies.has('next')) {
-    addProviderEvidence(providers, 'vercel', 'high', 'package.json: dependency next');
+  if (dependencies.has('next') || dependencies.has('astro')) {
+    for (const dependency of collectMatchingDependencies(dependencies, ['next', 'astro'])) {
+      addProviderEvidence(providers, 'vercel', 'high', dependency);
+    }
   }
   if (
     dependencies.has('@neondatabase/serverless') ||
@@ -178,8 +243,9 @@ async function detectProviders(
       ]),
     ]);
   }
-  if (dependencies.has('@clerk/nextjs')) {
-    packageEvidence.set('clerk', ['package.json: dependency @clerk/nextjs']);
+  const clerkEvidence = collectMatchingDependencies(dependencies, [...CLERK_PACKAGES]);
+  if (clerkEvidence.length > 0) {
+    packageEvidence.set('clerk', clerkEvidence);
   }
   if (dependencies.has('stripe')) {
     packageEvidence.set('stripe', ['package.json: dependency stripe']);
@@ -199,33 +265,34 @@ async function detectProviders(
     }
   }
 
-  const fileChecks = await Promise.all([
-    maybeExists(directory, 'drizzle.config.ts'),
-    maybeExists(directory, 'prisma/schema.prisma'),
-    maybeExists(directory, 'app/api/webhooks/stripe/route.ts'),
-    maybeExists(directory, 'middleware.ts'),
-    maybeExists(directory, 'sentry.client.config.ts'),
-    maybeExists(directory, 'sentry.server.config.ts'),
-  ]);
+  const [drizzleConfig, prismaSchema, stripeWebhookPath, middleware, sentryClient, sentryServer] =
+    await Promise.all([
+      maybeExists(directory, 'drizzle.config.ts'),
+      maybeExists(directory, 'prisma/schema.prisma'),
+      firstExistingPath(directory, [...STRIPE_WEBHOOK_PATHS]),
+      maybeExists(directory, 'middleware.ts'),
+      maybeExists(directory, 'sentry.client.config.ts'),
+      maybeExists(directory, 'sentry.server.config.ts'),
+    ]);
 
-  if (fileChecks[0]) {
+  if (drizzleConfig) {
     addProviderEvidence(providers, 'neon', 'high', 'drizzle.config.ts');
   }
-  if (fileChecks[1]) {
+  if (prismaSchema) {
     addProviderEvidence(providers, 'neon', 'high', 'prisma/schema.prisma');
   }
-  if (fileChecks[2]) {
-    addProviderEvidence(providers, 'stripe', 'high', 'app/api/webhooks/stripe/route.ts');
+  if (stripeWebhookPath) {
+    addProviderEvidence(providers, 'stripe', 'high', stripeWebhookPath);
   }
-  if (fileChecks[3] && dependencies.has('@clerk/nextjs')) {
+  if (middleware && clerkEvidence.length > 0) {
     addProviderEvidence(providers, 'clerk', 'high', 'middleware.ts');
   }
-  if (fileChecks[4] || fileChecks[5]) {
+  if (sentryClient || sentryServer) {
     addProviderEvidence(
       providers,
       'sentry',
       'high',
-      fileChecks[4] ? 'sentry.client.config.ts' : 'sentry.server.config.ts',
+      sentryClient ? 'sentry.client.config.ts' : 'sentry.server.config.ts',
     );
   }
 
@@ -239,6 +306,19 @@ async function maybeExists(directory: string, relativePath: string): Promise<boo
   } catch {
     return false;
   }
+}
+
+async function firstExistingPath(
+  directory: string,
+  relativePaths: string[],
+): Promise<string | undefined> {
+  for (const relativePath of relativePaths) {
+    if (await maybeExists(directory, relativePath)) {
+      return relativePath;
+    }
+  }
+
+  return undefined;
 }
 
 function collectMatchingDependencies(
@@ -260,6 +340,65 @@ function mergeEnvVarProvidersIntoDetectedProviders(
     }
 
     addProviderEvidence(providers, envVar.provider, 'high', `${envVar.source}: ${envVar.name}`);
+  }
+}
+
+function applyProjectConfigOverrides(
+  requiredEnvVars: EnvVarRequirement[],
+  providers: Map<string, DetectedProvider>,
+  loadedConfig: LoadedProjectConfig,
+): void {
+  const config = loadedConfig.config;
+  const source = basename(loadedConfig.path);
+
+  if (config.env) {
+    for (const [name, envVar] of Object.entries(config.env)) {
+      const index = requiredEnvVars.findIndex((candidate) => candidate.name === name);
+      if (envVar.required === false) {
+        if (index >= 0) {
+          requiredEnvVars.splice(index, 1);
+        }
+        continue;
+      }
+
+      const nextEnvVar: EnvVarRequirement = {
+        name,
+        ...(envVar.provider ? { provider: envVar.provider } : {}),
+        source,
+        isAutoProvisionable: envVar.autoProvision ?? isAutoProvisionableEnvVar(name),
+      };
+
+      if (index >= 0) {
+        requiredEnvVars[index] = {
+          ...requiredEnvVars[index],
+          ...nextEnvVar,
+        };
+      } else {
+        requiredEnvVars.push(nextEnvVar);
+      }
+
+      if (envVar.provider) {
+        addProviderEvidence(providers, envVar.provider, 'high', `${source}: env.${name}`);
+      }
+    }
+  }
+
+  if (config.providers) {
+    for (const [provider, value] of Object.entries(config.providers)) {
+      const enabled = typeof value === 'boolean' ? value : value.enabled;
+      if (enabled === false) {
+        providers.delete(provider);
+        for (const envVar of requiredEnvVars) {
+          if (envVar.provider === provider) {
+            delete envVar.provider;
+          }
+        }
+        continue;
+      }
+      if (enabled === true) {
+        addProviderEvidence(providers, provider, 'high', `${source}: providers.${provider}`);
+      }
+    }
   }
 }
 
@@ -318,6 +457,16 @@ function getDependencyMap(packageJson: Record<string, unknown>): Map<string, str
   return dependencies;
 }
 
+function hasBuildScript(packageJson: Record<string, unknown>): boolean {
+  const scripts = packageJson.scripts;
+  if (typeof scripts !== 'object' || scripts === null || Array.isArray(scripts)) {
+    return false;
+  }
+
+  const build = (scripts as Record<string, unknown>).build;
+  return typeof build === 'string' && build.trim() !== '';
+}
+
 function inferProviderFromEnvVar(name: string): string | undefined {
   if (DATABASE_ENV_VARS.has(name)) {
     return 'neon';
@@ -339,6 +488,10 @@ function inferProviderFromEnvVar(name: string): string | undefined {
 
 function isAutoProvisionableEnvVar(name: string): boolean {
   return inferProviderFromEnvVar(name) !== undefined;
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error;
 }
 
 const LOCKFILE_TO_MANAGER: Record<string, PackageManager> = {

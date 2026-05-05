@@ -10,7 +10,7 @@ Provision the infrastructure your app needs and ship it from your terminal.
 
 Assembler is a TUI-first CLI for existing applications. It scans the project you already built, plans the required infrastructure as a task DAG, executes provider actions with checkpoint and resume, and stores local run state in `.assembler/state.db`.
 
-The public beta is honest about its current shape: the Next.js + Vercel path is stable today. Astro, static sites, Cloudflare Pages, and more targets are on the public roadmap.
+The public beta is honest about its current shape: Next.js, Astro, and static sites deploy through Vercel today. Static deploy intents can also target Cloudflare Pages explicitly with `--target cloudflare-pages`.
 
 Assembler does not generate application code or scaffold projects.
 
@@ -26,10 +26,10 @@ Or run without installing:
 npx @mariusdale/assembler
 ```
 
-From an existing Next.js project:
+From an existing Next.js, Astro, or static site project:
 
 ```bash
-cd your-nextjs-app
+cd your-app
 assembler
 ```
 
@@ -44,8 +44,8 @@ Direct commands are available for automation:
 
 | Command | Description |
 |---|---|
-| `assembler launch` | Scan, provision, deploy, and verify the current project |
-| `assembler plan` | Show the launch plan without executing it |
+| `assembler launch [--target <target>]` | Scan, provision, deploy, and verify the current project |
+| `assembler plan [--target <target>]` | Show the launch plan without executing it |
 | `assembler doctor` | Check local readiness and configured provider credentials |
 | `assembler status [runId]` | Inspect deployment history or a specific run |
 | `assembler resume <runId>` | Resume a failed run from its checkpoint |
@@ -62,8 +62,8 @@ Direct commands are available for automation:
 
 | Area | Supported today | Planned |
 |---|---|---|
-| Frameworks | Next.js | Astro, static sites, Remix, SvelteKit, generic Node |
-| Deployment targets | Vercel | Cloudflare Pages, Netlify, Docker-based targets |
+| Frameworks | Next.js, Astro, static sites | Remix, SvelteKit, generic Node |
+| Deployment targets | Vercel, Cloudflare Pages for explicit static/edge targets | Netlify, Docker-based targets |
 | Providers | GitHub, Vercel, Neon, Clerk, Stripe, Sentry, Resend, Cloudflare DNS | Supabase, Railway, Fly.io, PostHog, Plausible, Linear |
 | State | Local SQLite in `.assembler/state.db` | Optional dashboard and team sync |
 
@@ -86,7 +86,7 @@ assembler creds add clerk token=<secret-key> publishableKey=<pk_...>
 assembler creds add stripe <stripe-secret-key>
 assembler creds add sentry <sentry-auth-token>
 assembler creds add resend <resend-api-key>
-assembler creds add cloudflare <cloudflare-api-token>
+assembler creds add cloudflare token=<cloudflare-api-token> accountId=<cloudflare-account-id>
 ```
 
 See [Credential setup](docs/credential-setup.md) for scopes and provider links.
@@ -102,7 +102,7 @@ Project scan
   -> SQLite state and recovery commands
 ```
 
-The current planner has Next.js-specific rules. The first roadmap milestone extracts those rules into a framework strategy registry, followed by a deployment target registry so frameworks and hosting targets can evolve independently.
+The planner uses framework strategies that emit deployment intents. Deployment targets, starting with Vercel and Cloudflare Pages, decide whether they can satisfy those intents, so frameworks and hosting targets can evolve independently.
 
 ## Why Assembler?
 
@@ -116,6 +116,8 @@ The current planner has Next.js-specific rules. The first roadmap milestone extr
 
 - [Documentation index](docs/README.md)
 - [Architecture](docs/architecture.md)
+- [Astro framework support](docs/frameworks/astro.md)
+- [Cloudflare Pages target](docs/targets/cloudflare-pages.md)
 - [Public beta guide](docs/product/public-beta.md)
 - [Credential setup](docs/credential-setup.md)
 - [Release checklist](docs/ops/release-checklist.md)

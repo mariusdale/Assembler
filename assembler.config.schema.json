@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assembler.dev/schemas/assembler.config.schema.json",
+  "title": "Assembler project config",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "framework": {
+      "type": "string",
+      "enum": ["nextjs", "remix", "astro", "static", "node", "unknown"]
+    },
+    "target": {
+      "type": "string",
+      "minLength": 1
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outputDirectory": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nodeVersion": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "autoProvision": {
+            "type": "boolean"
+          }
+        }
+      },
+      "propertyNames": {
+        "pattern": "^[A-Z][A-Z0-9_]*$"
+      }
+    },
+    "providers": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              }
+            }
+          }
+        ]
+      },
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*$"
+      }
+    }
+  }
+}
