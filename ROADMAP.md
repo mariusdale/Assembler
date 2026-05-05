@@ -75,7 +75,7 @@ Status: shipped. Scope: large. Depends on M2.
 
 ## M6 - Project Config File
 
-Add `assembler.config.{ts,js,json}` so users can override heuristics with explicit framework, target, build, output, env, provider, and hook settings.
+Add `assembler.config.{ts,js,json}` so users can override heuristics with explicit framework, target, build, output, env, and provider settings. Hook settings remain a later candidate once execution extension points are broader.
 
 Deliverables:
 
@@ -83,9 +83,10 @@ Deliverables:
 - JSON schema
 - scan overrides
 - `assembler init`
+- `assembler config show`
 - `docs/configuration.md`
 
-Status: planned. Scope: large. Depends on M1 and M2.
+Status: shipped. Scope: large. Depends on M1 and M2.
 
 ## M7 - Desktop Deployments Dashboard
 
@@ -110,8 +111,6 @@ Status: planned. Scope: extra-large.
 
 ## Good First Issues To Seed
 
-- Write the JSON schema for `assembler.config.json`.
-- Add `assembler doctor` checks for config schema and framework consistency.
+- Add smoke tests for `assembler init` and `assembler config show`.
 - Move CLI provider and framework labels into a dedicated labels module.
-- Add `assembler config show`.
 - Add smoke-test docs for `assembler plan --target cloudflare-pages`.

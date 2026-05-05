@@ -56,6 +56,14 @@ M5 - Cloudflare Pages Target: shipped.
 - `assembler plan --target cloudflare-pages` and `assembler launch --target cloudflare-pages` pass target preference to planning.
 - `docs/targets/cloudflare-pages.md` documents current scope.
 
+M6 - Project Config File: shipped.
+
+- `assembler.config.{json,ts,js,mjs,cjs}` can override framework, target, build command, output directory, Node version, env metadata, and provider enablement.
+- `assembler init` creates a detected `assembler.config.json`.
+- `assembler config show` prints normalized project config.
+- `assembler doctor` validates config parsing and target/framework compatibility before launch.
+- `docs/configuration.md` documents supported config fields.
+
 ## Remaining Launch Work
 
 1. Run full verification before publishing:
@@ -83,16 +91,10 @@ M5 - Cloudflare Pages Target: shipped.
 
 5. Publish launch framing:
    - README says Next.js, Astro, static sites, and explicit Cloudflare Pages targeting work today.
-   - Roadmap says M1-M5 shipped and M6-M7 are next.
+   - Roadmap says M1-M6 shipped and M7 is next.
    - Public beta guide stays conservative about supported execution paths.
 
 ## Next Implementation Milestones
-
-M6 - Project Config File.
-
-- Add `assembler.config.{ts,js,json}`.
-- Allow explicit framework, target, build command, output directory, provider enable/disable, and env metadata.
-- Add `assembler init` and `assembler config show`.
 
 M7 - Desktop Deployments Dashboard.
 
