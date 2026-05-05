@@ -26,6 +26,7 @@ import {
   type RunOutcomeSummary,
 } from '../run-insights.js';
 import type { TuiAction, TuiState } from '../types.js';
+import { labelFramework } from '../../labels.js';
 
 type LaunchPhase =
   | 'scan'
@@ -35,14 +36,6 @@ type LaunchPhase =
   | 'execute-paused'
   | 'complete'
   | 'error';
-
-const FRAMEWORK_LABELS: Record<string, string> = {
-  nextjs: 'Next.js',
-  remix: 'Remix',
-  astro: 'Astro',
-  node: 'Node.js',
-  unknown: 'Unknown',
-};
 
 const READINESS_LABELS: Record<LaunchReadinessState, string> = {
   ready: 'Ready',
@@ -354,7 +347,7 @@ function LaunchBriefing({
       </InfoPanel>
 
       <InfoPanel title="Project">
-        <KeyValue label="Framework" value={FRAMEWORK_LABELS[projectScan.framework] ?? projectScan.framework} />
+        <KeyValue label="Framework" value={labelFramework(projectScan.framework)} />
         <KeyValue label="Directory" value={projectScan.directory.replace(homeDir, '~')} />
         <KeyValue
           label="Git remote"

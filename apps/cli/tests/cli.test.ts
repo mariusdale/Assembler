@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createProgram } from '../src/cli.js';
+import { labelFramework, labelProvider } from '../src/labels.js';
 
 describe('assembler CLI', () => {
   it('shows the curated public command surface in help output', () => {
@@ -35,5 +36,11 @@ describe('assembler CLI', () => {
     const config = createProgram().commands.find((command) => command.name() === 'config');
 
     expect(config?.commands.map((command) => command.name())).toContain('show');
+  });
+
+  it('uses shared labels for frameworks and providers', () => {
+    expect(labelFramework('static')).toBe('Static site');
+    expect(labelProvider('github')).toBe('Repository: GitHub');
+    expect(labelProvider('custom-provider')).toBe('custom-provider');
   });
 });

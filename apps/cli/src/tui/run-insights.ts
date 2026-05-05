@@ -8,17 +8,7 @@ import type {
 } from '@assembler/types';
 
 import type { PreflightCheckResults } from '../app.js';
-
-const PROVIDER_LABELS: Record<string, string> = {
-  clerk: 'Auth: Clerk',
-  cloudflare: 'DNS: Cloudflare',
-  github: 'GitHub',
-  neon: 'Database: Neon',
-  resend: 'Email: Resend',
-  sentry: 'Error Tracking: Sentry',
-  stripe: 'Payments: Stripe',
-  vercel: 'Hosting: Vercel',
-};
+import { labelProvider } from '../labels.js';
 
 export type LaunchReadinessState = 'ready' | 'ready_with_warnings' | 'blocked';
 export type PlanPhaseKey = 'repo' | 'infra' | 'config' | 'deploy' | 'verify';
@@ -224,7 +214,7 @@ export function getProviderReadiness(
 
       const item: ProviderReadinessItem = {
         provider,
-        label: PROVIDER_LABELS[provider] ?? provider,
+        label: labelProvider(provider),
         required: requiredProviders.has(provider),
         envOnly,
         evidence: detectedProvider?.evidence ?? [],
@@ -519,7 +509,7 @@ function summarizeResources(runPlan: RunPlan): string[] {
       case 'stripe':
       case 'resend':
       case 'sentry':
-        items.push(PROVIDER_LABELS[task.provider] ?? task.provider);
+        items.push(labelProvider(task.provider));
         break;
       default:
         break;

@@ -6,22 +6,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator.js';
 import { ErrorBox } from '../components/ErrorBox.js';
 import type { TuiState, TuiAction } from '../types.js';
 import type { ProjectScan, RunPlan } from '@assembler/types';
-
-const FRAMEWORK_LABELS: Record<string, string> = {
-  nextjs: 'Next.js',
-  remix: 'Remix',
-  astro: 'Astro',
-  node: 'Node.js',
-  unknown: 'Unknown',
-};
-
-const PROVIDER_LABELS: Record<string, string> = {
-  neon: 'Database: Neon',
-  vercel: 'Hosting: Vercel',
-  clerk: 'Auth: Clerk',
-  stripe: 'Payments: Stripe',
-  cloudflare: 'DNS: Cloudflare',
-};
+import { labelFramework, labelProvider } from '../../labels.js';
 
 type PlanPhase = 'scanning' | 'display' | 'error';
 
@@ -69,11 +54,11 @@ export function PlanScreen({
         {phase === 'display' && projectScan && runPlan && (
           <Box flexDirection="column">
             <Text color="green">
-              ✓ {FRAMEWORK_LABELS[projectScan.framework] ?? projectScan.framework} app detected
+              ✓ {labelFramework(projectScan.framework)} app detected
             </Text>
             {projectScan.detectedProviders.map((dp) => (
               <Text key={dp.provider} dimColor>
-                {'  '}• {PROVIDER_LABELS[dp.provider] ?? dp.provider}
+                {'  '}• {labelProvider(dp.provider)}
               </Text>
             ))}
 

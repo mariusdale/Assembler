@@ -5,17 +5,7 @@ import { useCliApp } from '../context.js';
 import { useNavigation } from '../hooks/use-navigation.js';
 import type { TuiAction } from '../types.js';
 import type { DoctorResult } from '../../app.js';
-
-const PROVIDER_LABELS: Record<string, string> = {
-  neon: 'Database: Neon',
-  vercel: 'Hosting: Vercel',
-  clerk: 'Auth: Clerk',
-  stripe: 'Payments: Stripe',
-  cloudflare: 'DNS: Cloudflare',
-  resend: 'Email: Resend',
-  sentry: 'Error Tracking: Sentry',
-  github: 'Repository: GitHub',
-};
+import { labelFramework, labelProvider } from '../../labels.js';
 
 export function DoctorScreen({
   dispatch,
@@ -107,7 +97,7 @@ export function DoctorScreen({
       <Text dimColor>Review the project gate first, then confirm required providers are connected and healthy.</Text>
 
       <Panel title="Project Readiness" borderColor={projectReady ? 'green' : 'red'}>
-        <CheckRow label="Framework" ok={scan.framework === 'nextjs'} detail={scan.framework === 'nextjs' ? 'Next.js' : `Detected ${scan.framework}`} />
+        <CheckRow label="Framework" ok={scan.framework === 'nextjs'} detail={scan.framework === 'nextjs' ? 'Next.js' : `Detected ${labelFramework(scan.framework)}`} />
         <CheckRow label="Lockfile" ok={scan.lockfileCheck.lockfileExists} detail={scan.lockfileCheck.lockfileExists ? 'Present' : 'Missing'} />
         <CheckRow label="Lockfile sync" ok={scan.lockfileCheck.inSync} detail={scan.lockfileCheck.inSync ? 'In sync' : 'Out of sync'} />
         <CheckRow label="Build script" ok={hasBuildScript} detail={hasBuildScript ? 'Configured' : 'Missing from package.json'} />
@@ -136,7 +126,7 @@ export function DoctorScreen({
 
       <Panel title="Provider Readiness" borderColor={providerIssues.length === 0 ? 'cyan' : 'yellow'}>
         {result.checks.map((check) => {
-          const label = PROVIDER_LABELS[check.provider] ?? check.provider;
+          const label = labelProvider(check.provider);
 
           if (!check.hasCredentials) {
             return (

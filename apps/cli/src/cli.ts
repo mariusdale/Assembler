@@ -8,29 +8,11 @@ import type { ProjectScan, RunPlan, Task } from '@assembler/types';
 
 import { createCliApp } from './app.js';
 import type { PreflightCheckResults, EnvPullResult, EnvPushResult, DomainAddResult, PreviewResult, PreviewTeardownResult, DoctorResult } from './app.js';
+import { labelFramework, labelProvider } from './labels.js';
 
 interface TargetCommandOptions {
   target?: string;
 }
-
-const FRAMEWORK_LABELS: Record<string, string> = {
-  nextjs: 'Next.js',
-  remix: 'Remix',
-  astro: 'Astro',
-  static: 'Static site',
-  node: 'Node.js',
-  unknown: 'Unknown',
-};
-
-const PROVIDER_LABELS: Record<string, string> = {
-  neon: 'Database: Neon',
-  vercel: 'Hosting: Vercel',
-  clerk: 'Auth: Clerk',
-  stripe: 'Payments: Stripe',
-  cloudflare: 'DNS: Cloudflare',
-  resend: 'Email: Resend',
-  sentry: 'Error Tracking: Sentry',
-};
 
 export function createProgram(): Command {
   const program = new Command();
@@ -61,7 +43,7 @@ export function createProgram(): Command {
       let projectScan: ProjectScan;
       try {
         projectScan = await cliApp.scan();
-        const frameworkLabel = FRAMEWORK_LABELS[projectScan.framework] ?? projectScan.framework;
+        const frameworkLabel = labelFramework(projectScan.framework);
         scanSpinner.succeed(`${frameworkLabel} app detected`);
       } catch (error) {
         scanSpinner.fail('Project scan failed');
@@ -325,7 +307,7 @@ export function createProgram(): Command {
       let projectScan: ProjectScan;
       try {
         projectScan = await cliApp.scan();
-        const frameworkLabel = FRAMEWORK_LABELS[projectScan.framework] ?? projectScan.framework;
+        const frameworkLabel = labelFramework(projectScan.framework);
         scanSpinner.succeed(`${frameworkLabel} app detected`);
       } catch (error) {
         scanSpinner.fail('Project scan failed');
@@ -691,7 +673,7 @@ export function createProgram(): Command {
       console.log(chalk.bold('Provider Credentials:'));
 
       for (const check of result.checks) {
-        const label = PROVIDER_LABELS[check.provider] ?? check.provider;
+        const label = labelProvider(check.provider);
 
         if (!check.hasCredentials) {
           console.log(`  ${chalk.dim('○')} ${chalk.dim(label)} ${chalk.dim('— not configured')}`);
@@ -753,7 +735,7 @@ function printDetectedServices(scan: ProjectScan): void {
   console.log();
   console.log(chalk.bold('Detected services:'));
   for (const provider of providers) {
-    const label = PROVIDER_LABELS[provider.provider] ?? provider.provider;
+    const label = labelProvider(provider.provider);
     const evidence = provider.evidence[0] ? chalk.dim(`(${provider.evidence[0]})`) : '';
     console.log(`  ${chalk.cyan('•')} ${label} ${evidence}`);
   }
