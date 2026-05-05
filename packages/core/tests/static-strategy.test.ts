@@ -75,4 +75,56 @@ describe('static site strategy', () => {
     });
     expect(plan.tasks.map((task) => task.id)).not.toContain('vercel-create-project');
   });
+
+  it('uses config target and build overrides when planning static deploys', async () => {
+    const projectDirectory = await mkdtemp(join(tmpdir(), 'assembler-static-config-'));
+    await mkdir(join(projectDirectory, 'public'), { recursive: true });
+    await writeFile(
+      join(projectDirectory, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'configured-static-site',
+          scripts: {
+            build: 'vite build',
+          },
+          devDependencies: {
+            vite: '^6.0.0',
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFile(join(projectDirectory, 'public', 'index.html'), '<h1>Configured</h1>');
+    await writeFile(
+      join(projectDirectory, 'assembler.config.json'),
+      JSON.stringify(
+        {
+          framework: 'static',
+          target: 'cloudflare-pages',
+          build: {
+            command: 'pnpm custom-build',
+            outputDirectory: 'public',
+            nodeVersion: '20.x',
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const scan = await scanProject(projectDirectory);
+    const plan = createRunPlanFromProjectScan(scan);
+
+    expect(plan.tasks.map((task) => task.id)).toContain('cloudflare-pages-trigger-deployment');
+    expect(
+      plan.tasks.find((task) => task.id === 'cloudflare-pages-create-project')?.params,
+    ).toMatchObject({
+      artifact: 'static',
+      framework: 'static',
+      buildCommand: 'pnpm custom-build',
+      outputDirectory: 'public',
+      nodeVersion: '20.x',
+    });
+  });
 });

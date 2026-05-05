@@ -6,11 +6,14 @@ import { promisify } from 'node:util';
 import type {
   DetectedProvider,
   EnvVarRequirement,
+  LoadedProjectConfig,
   LockfileCheck,
   PackageManager,
   ProjectFramework,
   ProjectScan,
 } from '@assembler/types';
+
+import { loadProjectConfig } from './config.js';
 
 const execFile = promisify(execFileCallback);
 
@@ -43,9 +46,13 @@ const STATIC_OUTPUT_DIRECTORIES = ['dist', 'build', '_site', 'out'] as const;
 
 export async function scanProject(directory: string): Promise<ProjectScan> {
   const projectDirectory = resolve(directory);
-  const packageJson = await readPackageJson(projectDirectory);
+  const [packageJson, loadedConfig] = await Promise.all([
+    readPackageJson(projectDirectory),
+    loadProjectConfig(projectDirectory),
+  ]);
   const packageName = getPackageName(packageJson) ?? basename(projectDirectory);
-  const framework = await detectFramework(projectDirectory, packageJson);
+  const detectedFramework = await detectFramework(projectDirectory, packageJson);
+  const framework = loadedConfig?.config.framework ?? detectedFramework;
   const [gitRemoteUrl, requiredEnvVars, detectedProviders, lockfileCheck] = await Promise.all([
     getGitRemoteUrl(projectDirectory),
     collectEnvRequirements(projectDirectory),
@@ -54,6 +61,9 @@ export async function scanProject(directory: string): Promise<ProjectScan> {
   ]);
 
   mergeEnvVarProvidersIntoDetectedProviders(requiredEnvVars, detectedProviders);
+  if (loadedConfig) {
+    applyProjectConfigOverrides(requiredEnvVars, detectedProviders, loadedConfig);
+  }
 
   return {
     name: packageName,
@@ -65,6 +75,7 @@ export async function scanProject(directory: string): Promise<ProjectScan> {
     requiredEnvVars: requiredEnvVars.sort((left, right) => left.name.localeCompare(right.name)),
     packageJson,
     lockfileCheck,
+    ...(loadedConfig ? { config: loadedConfig } : {}),
   };
 }
 
@@ -329,6 +340,65 @@ function mergeEnvVarProvidersIntoDetectedProviders(
     }
 
     addProviderEvidence(providers, envVar.provider, 'high', `${envVar.source}: ${envVar.name}`);
+  }
+}
+
+function applyProjectConfigOverrides(
+  requiredEnvVars: EnvVarRequirement[],
+  providers: Map<string, DetectedProvider>,
+  loadedConfig: LoadedProjectConfig,
+): void {
+  const config = loadedConfig.config;
+  const source = basename(loadedConfig.path);
+
+  if (config.env) {
+    for (const [name, envVar] of Object.entries(config.env)) {
+      const index = requiredEnvVars.findIndex((candidate) => candidate.name === name);
+      if (envVar.required === false) {
+        if (index >= 0) {
+          requiredEnvVars.splice(index, 1);
+        }
+        continue;
+      }
+
+      const nextEnvVar: EnvVarRequirement = {
+        name,
+        ...(envVar.provider ? { provider: envVar.provider } : {}),
+        source,
+        isAutoProvisionable: envVar.autoProvision ?? isAutoProvisionableEnvVar(name),
+      };
+
+      if (index >= 0) {
+        requiredEnvVars[index] = {
+          ...requiredEnvVars[index],
+          ...nextEnvVar,
+        };
+      } else {
+        requiredEnvVars.push(nextEnvVar);
+      }
+
+      if (envVar.provider) {
+        addProviderEvidence(providers, envVar.provider, 'high', `${source}: env.${name}`);
+      }
+    }
+  }
+
+  if (config.providers) {
+    for (const [provider, value] of Object.entries(config.providers)) {
+      const enabled = typeof value === 'boolean' ? value : value.enabled;
+      if (enabled === false) {
+        providers.delete(provider);
+        for (const envVar of requiredEnvVars) {
+          if (envVar.provider === provider) {
+            delete envVar.provider;
+          }
+        }
+        continue;
+      }
+      if (enabled === true) {
+        addProviderEvidence(providers, provider, 'high', `${source}: providers.${provider}`);
+      }
+    }
   }
 }
 

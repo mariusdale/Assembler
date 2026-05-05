@@ -49,6 +49,67 @@ describe('project scanner', () => {
     expect(scan.detectedProviders.some((provider) => provider.provider === 'vercel')).toBe(true);
     expect(scan.requiredEnvVars.map((envVar) => envVar.name)).toContain('DATABASE_URL');
   });
+
+  it('applies project config framework, env, and provider scan overrides', async () => {
+    const projectDirectory = await mkdtemp(join(tmpdir(), 'assembler-scan-config-'));
+
+    await writeFile(
+      join(projectDirectory, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'configured-app',
+          dependencies: {
+            '@sentry/node': '^8.0.0',
+            express: '^4.0.0',
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFile(join(projectDirectory, '.env.example'), 'SENTRY_DSN=\n');
+    await writeFile(
+      join(projectDirectory, 'assembler.config.json'),
+      JSON.stringify(
+        {
+          framework: 'static',
+          env: {
+            DATABASE_URL: {
+              provider: 'neon',
+              required: true,
+              autoProvision: true,
+            },
+          },
+          providers: {
+            sentry: false,
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const scan = await scanProject(projectDirectory);
+
+    expect(scan.framework).toBe('static');
+    expect(scan.config?.config.framework).toBe('static');
+    expect(scan.requiredEnvVars).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'DATABASE_URL',
+          provider: 'neon',
+          source: 'assembler.config.json',
+          isAutoProvisionable: true,
+        }),
+        expect.objectContaining({
+          name: 'SENTRY_DSN',
+        }),
+      ]),
+    );
+    expect(scan.requiredEnvVars.find((envVar) => envVar.name === 'SENTRY_DSN')?.provider).toBeUndefined();
+    expect(scan.detectedProviders.map((provider) => provider.provider)).toContain('neon');
+    expect(scan.detectedProviders.map((provider) => provider.provider)).not.toContain('sentry');
+  });
 });
 
 describe('lockfile check', () => {

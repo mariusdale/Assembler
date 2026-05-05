@@ -18,13 +18,15 @@ export const astroStrategy: FrameworkStrategy = {
     return scan.framework === 'astro';
   },
   plan(ctx) {
-    const buildCommand = getBuildCommand(ctx.projectScan.packageJson);
+    const build = ctx.projectScan.config?.config.build;
+    const buildCommand = build?.command ?? getBuildCommand(ctx.projectScan.packageJson);
     const intent: DeployIntent = {
       artifact: detectAstroOutputMode(ctx.projectScan.directory) === 'server' ? 'ssr-node' : 'static',
       framework: 'astro',
-      outputDirectory: 'dist',
+      outputDirectory: build?.outputDirectory ?? 'dist',
       envVarKeys: ctx.projectScan.requiredEnvVars.map((envVar) => envVar.name),
       ...(buildCommand ? { buildCommand } : {}),
+      ...(build?.nodeVersion ? { nodeVersion: build.nodeVersion } : {}),
     };
     const target = ctx.deploymentTargets.selectFor(intent, ctx.deploymentTargetPreference);
 

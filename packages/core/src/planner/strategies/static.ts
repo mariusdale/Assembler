@@ -13,14 +13,17 @@ export const staticStrategy: FrameworkStrategy = {
     return scan.framework === 'static';
   },
   plan(ctx) {
-    const buildCommand = getBuildCommand(ctx.projectScan.packageJson);
-    const outputDirectory = detectStaticOutputDirectory(ctx.projectScan.directory, buildCommand);
+    const build = ctx.projectScan.config?.config.build;
+    const buildCommand = build?.command ?? getBuildCommand(ctx.projectScan.packageJson);
+    const outputDirectory =
+      build?.outputDirectory ?? detectStaticOutputDirectory(ctx.projectScan.directory, buildCommand);
     const intent: DeployIntent = {
       artifact: 'static',
       framework: 'static',
       envVarKeys: ctx.projectScan.requiredEnvVars.map((envVar) => envVar.name),
       ...(buildCommand ? { buildCommand } : {}),
       ...(outputDirectory ? { outputDirectory } : {}),
+      ...(build?.nodeVersion ? { nodeVersion: build.nodeVersion } : {}),
     };
     const target = ctx.deploymentTargets.selectFor(intent, ctx.deploymentTargetPreference);
 
